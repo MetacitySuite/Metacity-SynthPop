@@ -1,0 +1,14 @@
+## Synthetic population pipeline
+## based on the synpp package
+
+# This is the path to a directory where the pipeline can store temporary data
+working_directory: /home/metakocour/Projects/MATSim-Research/cache
+
+run:
+  - extractosm
+  
+config:
+  data_path: /home/metakocour/Projects/MATSim-Research/data
+  output_path: /home/metakocour/Projects/MATSim-Research/output
+
+  osm_file: "prague-small.osm.pbf"
