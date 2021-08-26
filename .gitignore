@@ -164,3 +164,4 @@ cython_debug/
 *.osm.pbf
 cache/
 output/
+misc/PerformanceTesting/matsim_testing_files
