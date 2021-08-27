@@ -36,9 +36,7 @@ if __name__ == "__main__":
         for i in range(runs):
             print(f"(TEST) Simulation {i+1} / {runs} running ...")
             starttime = timeit.default_timer()
-            #return_code = run_simulation(full_command)
-            print(full_command)
-            time.sleep(3)
+            return_code = run_simulation(full_command)
             durtime = timeit.default_timer() - starttime
             times.append(durtime)
 
