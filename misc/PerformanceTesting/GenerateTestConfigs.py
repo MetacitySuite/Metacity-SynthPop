@@ -48,10 +48,12 @@ def main():
     parser = ArgumentParser(description="Generate multiple config.xml for parallel run testing")
     parser.add_argument('cpu_cores', type=int, help='Number of CPU cores')
     parser.add_argument('template_config_file', type=str, help='Path to the template config file')
-    parser.add_argument('working_dir', type=str, help='Working directory to store generated files, read inputs, ...')
-    
+    parser.add_argument('output_dir', type=str, help='Directory to store generated config files')
     parser.add_argument('matsim_input_plans_file', type=str, help='XML Plans file directory (in MATSim config file)')
-    parser.add_argument('matsim_output_dir', type=str, help='Path to simulation output directory (in MATSim config file)')
+
+    #https://matsim.atlassian.net/browse/MATSIM-652?page=com.atlassian.jira.plugin.system.issuetabpanels%3Acomment-tabpanel
+    #java -cp matsim.jar org.matsim.run.Controler -Dconfig.controler.outputDir=./output /path/to/config.xml
+    #parser.add_argument('matsim_output_dir', type=str, help='Path to simulation output directory (in MATSim config file), relative to command of running the MATSim')
     args = parser.parse_args()
 
     #creates output directory for generated configs
@@ -59,7 +61,7 @@ def main():
     #    os.mkdir(args.output_dir)
 
     #get template config file
-    config_gen = MATSimConfigFromTemplate(args.working_dir + args.template_config_file)
+    config_gen = MATSimConfigFromTemplate(args.template_config_file)
     
     #get input plans file name
     config_gen.configure_input_plans_file(args.matsim_input_plans_file)
@@ -75,10 +77,10 @@ def main():
 
         #set directory for matsim simulation output
         #config_gen.configure_output_directory(args.working_dir + args.matsim_output_dir + pop_file_name + "-eh" + str(p[0]) + "-qsim" + str(p[1]))
-        config_gen.configure_output_directory(args.working_dir + "outputs/" + pop_file_name + "-eh" + str(p[0]) + "-qsim" + str(p[1]))
+        config_gen.configure_output_directory("./outputs/" + pop_file_name + "-eh" + str(p[0]) + "-qsim" + str(p[1]))
 
         #save the generated config file
-        config_gen.save_config_file(args.working_dir + pop_file_name + "-config-prague-eh" + str(p[0]) + "-qsim" + str(p[1]) + ".xml")
+        config_gen.save_config_file(args.output_dir + pop_file_name + "-config-prague-eh" + str(p[0]) + "-qsim" + str(p[1]) + ".xml")
     
 if __name__ == "__main__":
     main()
