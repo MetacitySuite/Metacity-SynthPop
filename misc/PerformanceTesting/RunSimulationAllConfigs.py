@@ -29,7 +29,7 @@ if __name__ == "__main__":
 
     for conf in config_files:
         times = []
-        full_command = "java -Xmx16g -cp matsim-example-project-0.0.1-SNAPSHOT.jar org.matsim.run.Controler" + " " + config_dir + conf;
+        full_command = "java -Xmx16g -cp matsim-0.0.1.jar org.matsim.run.Controler" + " " + config_dir + conf;
         print(f"(TEST) Running: {full_command}")
         print(f"(TEST) Number of runs: {runs}")
 
