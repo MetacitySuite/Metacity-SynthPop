@@ -69,36 +69,31 @@ def main():
     for t in travelers_file:
         possible_travel_mode = get_travel_modes(t)
         trips = []
+        o_purpose = 'home'
+        d_purpose = ''
+        departure_time = departure_time_home
+        primary = True
+        has_secondary_trip = False
 
-        """
-        #primary trip
-        mode = ''
+        for i in range(3):
+            if(i == 1):
+                if(random.random() < 0.5): #traveler will have a secondary trip with a probability
+                    primary = False
+                    has_secondary_trip = True
+                else:
+                    d_purpose = 'home'
 
-        d_time = datetime.datetime(100, 1, 1, 8, 0, 0)
-        a_time = datetime.datetime(100, 1, 1, 8, 0, 0)
-        activity_duration = datetime.timedelta(minutes=0)
-        """
+            if(i == 2):
+                if(has_secondary_trip): #third travel will be home
+                    primary = True
+                    d_purpose = 'home' 
+                else:
+                    break #ends generating trips
 
-        trip_no = 1
-        mode, o_purpose, d_purpose, d_time, a_time, activity_duration = generate_trip(t, possible_travel_mode, 'home', '', departure_time_home, True)
-
-        trips.append(dict([
-            ('traveler_id', t['traveler_id']),
-            ('trip_number', trip_no),
-            ('traveling_mode', mode),
-            ('origin_purpose', o_purpose),
-            ('destination_purpose', d_purpose),
-            ('departure_time', d_time.strftime('%H:%M')),
-            ('arrival_time', a_time.strftime('%H:%M')),
-        ]))
-
-        #traveler will have a secondary trip with a probability
-        if (random.random() < 0.5):
-            trip_no += 1
-            mode, o_purpose, d_purpose, d_time, a_time, activity_duration = generate_trip(t, possible_travel_mode, d_purpose, '', a_time + activity_duration, False)     
+            mode, o_purpose, d_purpose, d_time, a_time, activity_duration = generate_trip(t, possible_travel_mode, o_purpose, d_purpose, departure_time, primary)
             trips.append(dict([
                 ('traveler_id', t['traveler_id']),
-                ('trip_number', trip_no),
+                ('trip_number', i+1),
                 ('traveling_mode', mode),
                 ('origin_purpose', o_purpose),
                 ('destination_purpose', d_purpose),
@@ -106,36 +101,12 @@ def main():
                 ('arrival_time', a_time.strftime('%H:%M')),
             ]))
 
-            trip_no += 1
-            mode, o_purpose, d_purpose, d_time, a_time, activity_duration = generate_trip(t, possible_travel_mode, d_purpose, 'home', a_time+activity_duration, True)
-        
-            trips.append(dict([
-                ('traveler_id', t['traveler_id']),
-                ('trip_number', trip_no),
-                ('traveling_mode', mode),
-                ('origin_purpose', o_purpose),
-                ('destination_purpose', d_purpose),
-                ('departure_time', d_time.strftime('%H:%M')),
-                ('arrival_time', a_time.strftime('%H:%M')),
-            ]))
-
-        else:
-            trip_no += 1
-            mode, o_purpose, d_purpose, d_time, a_time, activity_duration = generate_trip(t, possible_travel_mode, d_purpose, 'home', a_time + activity_duration, True)
-        
-            trips.append(dict([
-                ('traveler_id', t['traveler_id']),
-                ('trip_number', trip_no),
-                ('traveling_mode', mode),
-                ('origin_purpose', o_purpose),
-                ('destination_purpose', d_purpose),
-                ('departure_time', d_time.strftime('%H:%M')),
-                ('arrival_time', a_time.strftime('%H:%M')),
-            ]))
+            o_purpose = d_purpose
+            departure_time = a_time + activity_duration
         
         for trip in trips:
-            writer.writerow(trip)
-            #print(trip)
+            #writer.writerow(trip)
+            print(trip)
 
 
 if __name__ == "__main__":

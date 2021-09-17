@@ -2,7 +2,7 @@
 import csv
 import random
 
-records=3
+records=100
 print("Making %d records\n" % records)
 
 fieldnames=['traveler_id', 'sample_weight', 'age', 'sex', 'employment', 'binary_car_availability', 'has_pt_subscription', 'home_x', 'home_y', 'primary_x', 'primary_y']
@@ -21,7 +21,7 @@ employment=['yes', 'no', 'student']
 writer.writerow(dict(zip(fieldnames, fieldnames)))
 for i in range(0, records):
   writer.writerow(dict([
-    ('traveler_id', i),
+    ('traveler_id', i+1),
     ('sample_weight', random.uniform(1.0, 20.0)),
     ('age', random.randint(18,60)),
     ('sex', random.choice(sex)),
