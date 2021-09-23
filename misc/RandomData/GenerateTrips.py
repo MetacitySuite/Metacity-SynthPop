@@ -60,7 +60,7 @@ def main():
     travelers_file = csv.DictReader(open("travelers.csv"), delimiter=';', fieldnames=fieldnames_traveleres)
     next(travelers_file)
 
-    fieldnames_trips=['traveler_id', 'trip_number', 'traveling_mode', 'origin_purpose', 'destination_purpose', 'departure_time', 'arrival_time']
+    fieldnames_trips=['traveler_id', 'traveling_mode', 'origin_purpose', 'destination_purpose', 'departure_time', 'arrival_time']
     writer = csv.DictWriter(open("trips.csv", "w"), delimiter=';', fieldnames=fieldnames_trips)
     writer.writerow(dict(zip(fieldnames_trips, fieldnames_trips)))
 
@@ -93,7 +93,6 @@ def main():
             mode, o_purpose, d_purpose, d_time, a_time, activity_duration = generate_trip(t, possible_travel_mode, o_purpose, d_purpose, departure_time, primary)
             trips.append(dict([
                 ('traveler_id', t['traveler_id']),
-                ('trip_number', i+1),
                 ('traveling_mode', mode),
                 ('origin_purpose', o_purpose),
                 ('destination_purpose', d_purpose),
@@ -105,8 +104,8 @@ def main():
             departure_time = a_time + activity_duration
         
         for trip in trips:
-            #writer.writerow(trip)
-            print(trip)
+            writer.writerow(trip)
+            #print(trip)
 
 
 if __name__ == "__main__":

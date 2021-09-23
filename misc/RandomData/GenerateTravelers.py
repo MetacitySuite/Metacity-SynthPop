@@ -30,6 +30,4 @@ for i in range(0, records):
     ('has_pt_subscription', random.choice(yn)),
     ('home_x', random.randint(coord_x_min, coord_x_max)),
     ('home_y', random.randint(coord_y_min, coord_y_max)),
-    ('primary_x', random.randint(coord_x_min, coord_x_max)),
-    ('primary_y', random.randint(coord_y_min, coord_y_max)),
     ]))
