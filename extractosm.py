@@ -40,7 +40,7 @@ def execute(context):
     handler = OSMHandler()
 
     # scan the input file and fills the handler list accordingly
-    handler.apply_file(context.config("data_path")+"/"+context.config("osm_file"), locations=True)
+    handler.apply_file(context.config("data_path")+context.config("osm_file"), locations=True)
 
 
     # transform the list into a pandas DataFrame

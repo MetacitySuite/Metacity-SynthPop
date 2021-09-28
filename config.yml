@@ -2,13 +2,19 @@
 ## based on the synpp package
 
 # This is the path to a directory where the pipeline can store temporary data
-working_directory: /home/metakocour/Projects/MATSim-Research/cache
+working_directory: /home/metakocour/Projects/MATSim-Research/cache/
 
 run:
-  - extractosm
+  #- extractosm
+  - extractshp
   
 config:
-  data_path: /home/metakocour/Projects/MATSim-Research/data
-  output_path: /home/metakocour/Projects/MATSim-Research/output
+  data_path: /home/metakocour/Projects/MATSim-Research/data/
+  output_path: /home/metakocour/Projects/MATSim-Research/output/
+  epsg: "EPSG:25832"
 
-  osm_file: "prague-small.osm.pbf"
+  osm_file: "osm/prague-small.osm.pbf"
+  shape_file_commer: "shp/VYBAVENOST/FSV_KomerVybav_b.shp"
+  shape_file_amenity: "shp/VYBAVENOST/FSV_ObcanVybav_b.shp"
+  shape_file_leisure: "shp/VYBAVENOST/FSV_RekreVybav_b.shp"
+  shape_file_ZSJ: "shp/SHP_kodZSJ/KodUzemi_Praha.shp"
