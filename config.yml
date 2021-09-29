@@ -5,8 +5,9 @@
 working_directory: /home/metakocour/Projects/MATSim-Research/cache/
 
 run:
-  #- extractosm
-  - extractshp
+  - preprocess.zones
+  - preprocess.extract_amenities
+  - preprocess.home
   
 config:
   data_path: /home/metakocour/Projects/MATSim-Research/data/
@@ -14,7 +15,12 @@ config:
   epsg: "EPSG:25832"
 
   osm_file: "osm/prague-small.osm.pbf"
-  shape_file_commer: "shp/VYBAVENOST/FSV_KomerVybav_b.shp"
+  shape_file_commercial: "shp/VYBAVENOST/FSV_KomerVybav_b.shp"
   shape_file_amenity: "shp/VYBAVENOST/FSV_ObcanVybav_b.shp"
   shape_file_leisure: "shp/VYBAVENOST/FSV_RekreVybav_b.shp"
-  shape_file_ZSJ: "shp/SHP_kodZSJ/KodUzemi_Praha.shp"
+  shape_file_zones: "shp/SHP_kodZSJ/KodUzemi_Praha.shp"
+  shape_file_home: "shp/OBYVATELSTVO/obyv_adr_body.shp"
+  poi_tags_work: "tags-shp/work.json"
+  poi_tags_education: "tags-shp/education.json"
+  poi_tags_shop: "tags-shp/shop.json"
+  poi_tags_leisure: "tags-shp/leisure.json"
