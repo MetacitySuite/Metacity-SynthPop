@@ -2,7 +2,7 @@
 ## based on the synpp package
 
 # This is the path to a directory where the pipeline can store temporary data
-working_directory: /home/metakocour/Projects/MATSim-Research/cache/
+working_directory: /home/metakocour/Projects/Metacity-SynthPop/cache/
 
 run:
   - preprocess.zones
@@ -10,8 +10,8 @@ run:
   - preprocess.home
   
 config:
-  data_path: /home/metakocour/Projects/MATSim-Research/data/
-  output_path: /home/metakocour/Projects/MATSim-Research/output/
+  data_path: /home/metakocour/Projects/Metacity-SynthPop/data/
+  output_path: /home/metakocour/Projects/Metacity-SynthPop/output/
   epsg: "EPSG:25832"
 
   osm_file: "osm/prague-small.osm.pbf"

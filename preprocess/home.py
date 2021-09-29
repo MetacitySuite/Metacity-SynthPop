@@ -1,16 +1,15 @@
 import pandas as pd
 import geopandas as gpd
-import json
 
 def configure(context):
     context.config("data_path")
     context.config("epsg")
     context.config("shape_file_home")
-    context.config("preprocess.zones")
+    context.stage("preprocess.zones")
 
 def execute(context):
     epsg = context.config("epsg")
-    df_zones = context.config("preprocess.zones")
+    df_zones = context.stage("preprocess.zones")
 
     df_home = gpd.read_file(context.config("data_path") + context.config("shape_file_home"))
     df_home = df_home[["Sum_PTOTAL", "geometry"]]

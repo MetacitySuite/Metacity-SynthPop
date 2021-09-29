@@ -18,7 +18,6 @@ def process_poi_shapefile(file, col, epsg):
 def configure(context):
     context.config("data_path")
     context.config("epsg")
-    context.config("preprocess.zones")
     context.config("shape_file_commercial")
     context.config("shape_file_amenity")
     context.config("shape_file_leisure")
@@ -26,6 +25,8 @@ def configure(context):
     context.config("poi_tags_education")
     context.config("poi_tags_shop")
     context.config("poi_tags_leisure")
+
+    context.stage("preprocess.zones")
 
 def execute(context):
     epsg = context.config("epsg")
