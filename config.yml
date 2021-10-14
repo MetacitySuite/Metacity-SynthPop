@@ -5,15 +5,18 @@
 working_directory: /home/metakocour/Projects/Metacity-SynthPop/cache/
 
 run:
-  - preprocess.zones
-  - preprocess.extract_amenities
-  - preprocess.home
+  #- preprocess.zones
+  #- preprocess.extract_amenities
+  #- preprocess.home
+  - preprocess.clean_travel_survey
   
 config:
   data_path: /home/metakocour/Projects/Metacity-SynthPop/data/
   output_path: /home/metakocour/Projects/Metacity-SynthPop/output/
   epsg: "EPSG:25832"
 
+  census_file: census/
+  travel_survey_files: travel-survey/CvP-11_10_2021/
   osm_file: "osm/prague-small.osm.pbf"
   shape_file_commercial: "shp/VYBAVENOST/FSV_KomerVybav_b.shp"
   shape_file_amenity: "shp/VYBAVENOST/FSV_ObcanVybav_b.shp"
@@ -24,3 +27,5 @@ config:
   poi_tags_education: "tags-shp/education.json"
   poi_tags_shop: "tags-shp/shop.json"
   poi_tags_leisure: "tags-shp/leisure.json"
+
+  matching_minimum_samples: 10
