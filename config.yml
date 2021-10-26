@@ -8,14 +8,17 @@ run:
   #- preprocess.zones
   #- preprocess.extract_amenities
   #- preprocess.home
-  - preprocess.clean_travel_survey
+  #- preprocess.clean_travel_survey
+  #- preprocess.clean_census
+  - synthesis.locations.census_home_coord
   
 config:
   data_path: /home/metakocour/Projects/Metacity-SynthPop/data/
   output_path: /home/metakocour/Projects/Metacity-SynthPop/output/
-  epsg: "EPSG:25832"
+  epsg: "EPSG:5514"
+  seed: 8463
 
-  census_file: census/
+  census_file: census/SLDB 2011-13_10_2021/SLDB_AMOS_obaKraje.csv
   travel_survey_files: travel-survey/CvP-11_10_2021/
   osm_file: "osm/prague-small.osm.pbf"
   shape_file_commercial: "shp/VYBAVENOST/FSV_KomerVybav_b.shp"

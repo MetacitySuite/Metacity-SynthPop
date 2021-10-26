@@ -6,14 +6,12 @@ def load_poi_tags(file):
     poi_tags_file = open(file)
     return json.load(poi_tags_file)
      
-
 def process_poi_shapefile(file, col, epsg):
     gdf_poi = gpd.read_file(file)
     gdf_poi = gdf_poi[col]
     gdf_poi = gdf_poi.to_crs(epsg)
     gdf_poi.columns = ["id", "type", "description", "geometry"]
     return gdf_poi
-
 
 def configure(context):
     context.config("data_path")

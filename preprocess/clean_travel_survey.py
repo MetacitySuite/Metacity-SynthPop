@@ -7,7 +7,7 @@ def age_class_to_interval(age_class):
     bounds = [np.inf if x == '' else int(x) for x in bounds]
     return pd.Interval(bounds[0], bounds[1], closed='left')
 
-def clean_household_data(df):
+def clean_household_data(context, df):
     #cars = every type of a car and motorcycles
     car_list = ['car_private', 'car_company', 'car_util', 'car_other']
     df['car_number'] = df[car_list].sum(axis=1)
@@ -15,14 +15,14 @@ def clean_household_data(df):
     df = df[['household_id', 'district', 'persons_number', 'car_number', 'bike_number']]
     return df
 
-def clean_traveler_data(df):
+def clean_traveler_data(context, df):
     #drop rows with incomplete data
     df = df.dropna(subset = ['sex', 'employment', 'work_status', 'car_avail'])
-
-    employed_list_cz = ['zaměstnanec, zaměstnavatel, samostatně činný či pomáhající', 'pracující důchodce']
-    employed_list = ['employee, employer, self-employed, or helping', 'working retiree']
-    student_list_cz = ['žák ZŠ', 'pracující SŠ student nebo učeň','student SŠ', 'student VŠ', 'pracující VŠ student']
-    student_list = ['elementary school pupil', 'working high school student or apprentice', 'high school student', 'university student', 'working university student' ]
+    
+    #values for remapping
+    _, ts_values_dict = context.stage("preprocess.string_values")
+    employment_list_cz = ts_values_dict["employed_list_cz"] + ts_values_dict["unemployed_list_cz"] + ts_values_dict["edu_list_cz"] 
+    employment_list = ts_values_dict["employed_list"] + ts_values_dict["unemployed_list"] + ts_values_dict["edu_list"] 
 
     #add missing values
     df['age'] = df['age'].fillna(df.groupby(['sex', 'employment'])['age'].transform('median')).astype(int)
@@ -34,10 +34,10 @@ def clean_traveler_data(df):
     df['bike_avail'] = df['bike_avail'].replace(['ano', 'ne'], [True, False])
     df['pt_avail'] = df['pt_avail'].replace(['ano', 'ne'], [True, False])
     df['work_status'] = df['work_status'].replace(['ano', 'ne'], ['yes', 'no'])
-    df['employment'] = df['employment'].replace(employed_list_cz + student_list_cz, employed_list + student_list)
+    df['employment'] = df['employment'].replace(employment_list_cz, employment_list)
     
     #add student as new work status
-    df.loc[df['employment'].isin(student_list), 'work_status'] = "student"
+    df.loc[df['employment'].isin(ts_values_dict['edu_list']), 'work_status'] = "education"
 
     #remap original column (driving_license_none)
     df['driving_license'] = df['driving_license'].replace(['ano', 'ne'], [False, True])
@@ -96,17 +96,13 @@ def clean_activity_chain(df):
 
     return df
 
-def clean_trip_data(df, inside_area_only = True, area_code = 1000):
+def clean_trip_data(context, df, inside_area_only = True, area_code = 1000):
     #remap values
-    purpose_list_cz = ['bydliště', 'práce', 'vzdělávání', 'nakupování', 'volno', 'ostatní', 'zařizování', 'prac. cesta', 'stravování']
-    purpose_list = ['home', 'work', 'education', 'shop', 'leisure', 'other', 'other', 'other', 'shop']
-    mode_list_cz = ['auto-d', 'auto-p', 'bus', 'kolo', 'MHD', 'ostatní', 'pěšky', 'vlak']
-    mode_list = ['car', 'car-passenger', 'pt', 'bike', 'pt', 'other', 'walk', 'pt']
-
-    df['origin_purpose'] = df['origin_purpose'].replace(purpose_list_cz, purpose_list)
-    df['destination_purpose'] = df['destination_purpose'].replace(purpose_list_cz, purpose_list)
+    _, ts_values_dict = context.stage("preprocess.string_values")
+    df['origin_purpose'] = df['origin_purpose'].replace(ts_values_dict["purpose_list_cz"], ts_values_dict["purpose_list"])
+    df['destination_purpose'] = df['destination_purpose'].replace(ts_values_dict["purpose_list_cz"], ts_values_dict["purpose_list"])
     df['last_trip'] = df['last_trip'].replace(['ano', 'ne'], [True, False])
-    df['traveling_mode'] = df['traveling_mode'].replace(mode_list_cz, mode_list)
+    df['traveling_mode'] = df['traveling_mode'].replace(ts_values_dict["mode_list_cz"], ts_values_dict["mode_list"])
 
     #drop unidentified travelers
     df = df.dropna(subset=['traveler_id'])
@@ -118,7 +114,7 @@ def clean_trip_data(df, inside_area_only = True, area_code = 1000):
                                 (df['origin_purpose'].isna()) | (df['destination_purpose'].isna()) |
                                 (df['traveling_mode'].isna())]['traveler_id'].unique()
     df = df.loc[~df['traveler_id'].isin(removed_travelers)]
-
+    
     #expect trips to start and end in the same area code
     df['origin_code'] = df['origin_code'].fillna(df['destination_code'])
     df['destination_code'] = df['destination_code'].fillna(df['origin_code'])
@@ -126,18 +122,15 @@ def clean_trip_data(df, inside_area_only = True, area_code = 1000):
     df['destination_code'] = df['destination_code'].fillna(-1)
     df['origin_code'] = df['origin_code'].astype(int)
     df['destination_code'] = df['destination_code'].astype(int)
-
-    #remove travelers that leave or enter Prague during the day
+#    #remove travelers that leave or enter Prague during the day
     if(inside_area_only):
         removed_travelers = df.loc[(df['origin_code'] != area_code) | (df['destination_code'] != area_code)]['traveler_id'].unique()
         df = df.loc[~df['traveler_id'].isin(removed_travelers)]
     else: #TODO
         ...
-
-    #drop columns not useful anymore
+#    #drop columns not useful anymore
     df = df.drop(['origin_code', 'destination_code'], axis=1)
-
-    #clean and connect activity chains, purge nonsense
+#    #clean and connect activity chains, purge nonsense
     df = clean_activity_chain(df)
     return df
 
@@ -183,10 +176,10 @@ def connect_tables(df_hh, df_travelers, df_trips):
 
     return df_hh, df_travelers, df_trips
 
-
 def configure(context):
     context.config("data_path")
     context.config("travel_survey_files")
+    context.stage("preprocess.string_values")
 
 def execute(context):
     #read CSV data
@@ -219,14 +212,11 @@ def execute(context):
                         'origin_purpose', 'destination_purpose', 'last_trip',
                         'beeline', 'traveling_mode', 'origin_code', 'destination_code']
 
-    df_hh = clean_household_data(df_hh)
-    df_travelers = clean_traveler_data(df_travelers)
-    df_trips = clean_trip_data(df_trips)
+    df_hh = clean_household_data(context, df_hh)
+    df_travelers = clean_traveler_data(context, df_travelers)
+    df_trips = clean_trip_data(context, df_trips)
 
     #re-connect all data
     df_hh, df_travelers, df_trips = connect_tables(df_hh, df_travelers, df_trips)
 
-    #df_hh.to_csv(r'/home/metakocour/Projects/Metacity-SynthPop/output/H-1.csv', index = False, sep=';')
-    #df_travelers.to_csv(r'/home/metakocour/Projects/Metacity-SynthPop/output/P-1.csv', index = False, sep=';')
-    #df_trips.to_csv(r'/home/metakocour/Projects/Metacity-SynthPop/output/T-1.csv', index = False, sep=';')
     return df_hh, df_travelers, df_trips
