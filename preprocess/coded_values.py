@@ -7,7 +7,7 @@ def execute(context):
     #travel-survey
     travel_survey_values_dict = {}
     census_values_dict = {}
-
+ 
     travel_survey_values_dict['purpose_list_cz'] = ['bydliště', 'práce', 'vzdělávání', 'nakupování', 'volno', 'ostatní', 'zařizování', 'prac. cesta', 'stravování']
     travel_survey_values_dict['purpose_list'] = ['home', 'work', 'education', 'shop', 'leisure', 'other', 'other', 'other', 'shop']
     
@@ -29,6 +29,7 @@ def execute(context):
                                                         'with own source of living', 'person in household, pre-school child, other dependents',
                                                         'other unemployed', 'maternity leave']
 
+    #census
     census_values_dict['employment_values'] = [1, 2, 3, 4, 6, 7, 8, 11, 12, 13, 99]
     census_values_dict['employment_list'] = ['employee, employer, self-employed, or helping', 'working retiree', 
                         'working students and apprentices', 'maternity leave', 

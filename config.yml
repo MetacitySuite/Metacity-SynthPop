@@ -8,9 +8,13 @@ run:
   #- preprocess.zones
   #- preprocess.extract_amenities
   #- preprocess.home
+  
   #- preprocess.clean_travel_survey
   #- preprocess.clean_census
-  - synthesis.locations.census_home_coord
+  #- synthesis.locations.census_home
+  - synthesis.population.matched
+  
+  #- synthesis.out
   
 config:
   data_path: /home/metakocour/Projects/Metacity-SynthPop/data/

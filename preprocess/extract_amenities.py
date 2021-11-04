@@ -1,6 +1,7 @@
 import pandas as pd
 import geopandas as gpd
 import json
+from tqdm import tqdm 
 
 def load_poi_tags(file):
     poi_tags_file = open(file)
@@ -50,6 +51,7 @@ def execute(context):
         amenity[pt] = json.load(file)
 
     #extract amenitites coordinates and spatial join with zones
+    #TODO: refactor
 
     #commercial poi
     df_shop_poi = df_commercial_poi[df_commercial_poi["type"].isin(amenity['shop'])]

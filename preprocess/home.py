@@ -16,14 +16,15 @@ def execute(context):
     df_home = df_home.to_crs(epsg)
 
     #the average number of residents; geometry
-    df_home.columns = ["id", "resident_number", "geometry"] #rename columns
-    df_home["id"] = df_home["id"].astype(str) #was float
-    df_home["id"] = df_home["id"].str.split('.').str[0]
+    df_home.columns = ["residence_id", "resident_number", "geometry"] #rename columns
+    df_home.loc[:, "residence_id"] = df_home["residence_id"].astype(str) #was float
+    df_home.loc[:, "residence_id"] = df_home["residence_id"].str.split('.').str[0]
 
     #add zone_id
-    df_home['geometry'] = df_home['geometry'].centroid
+    df_home.loc[:, 'geometry'] = df_home['geometry'].centroid
     df_home = gpd.sjoin(df_home, df_zones, op = "within", how="left").drop(columns=["index_right"])
 
     #drop unsjoined houses
     df_home = df_home.dropna(subset=['zone_id'])   
+    df_home = df_home.reset_index(drop=True)
     return df_home
