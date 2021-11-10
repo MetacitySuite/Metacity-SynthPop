@@ -1,22 +1,22 @@
 import pandas as pd
 import geopandas as gpd
 import json
+import numpy as np
+import functools, itertools
+import random
+import re
+
+def configure(context):
+    context.config("data_path")
+    context.config("district_mapping_file") #data sensitive
+    context.stage("synthesis.locations.census_home")
+    context.stage("preprocess.clean_travel_survey")
+    context.stage("preprocess.zones")
+
+def execute(context):
+    df_census = context.stage("preprocess.clean_census")
+    df_zones = context.stage("preprocess.zones")
+    df_households, _, _ = context.stage("preprocess.clean_travel_survey")
 
 
-epsg = "EPSG:25832"
-
-#zones - ZSJ
-
-
-df_zones = gpd.read_file("./data/shp/SHP_kodZSJ/KodUzemi_Praha.shp")
-df_zones = df_zones[["kodUzemi", "geometry"]]
-df_zones = df_zones.to_crs(epsg)
-df_zones.columns = ["zone_id", "geometry"] #rename columns
-
-df_home = gpd.read_file("./data/shp/OBYVATELSTVO/obyv_adr_body.shp")
-df_home = df_home[["Sum_PTOTAL", "geometry"]]
-df_home = df_home.to_crs(epsg)
-
-df_home['geometry'] = df_home['geometry'].centroid
-df_home = gpd.sjoin(df_home, df_zones, op = "within", how="left").drop(columns=["index_right"])
-
+   

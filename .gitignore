@@ -168,7 +168,4 @@ misc/PerformanceTesting/matsim_testing_files
 misc/PerformanceTesting/templates
 misc/PerformanceTesting/outputs
 misc/RandomData
-data/shp
-data/osm
-data/census
-data/travel-survey
+data/*

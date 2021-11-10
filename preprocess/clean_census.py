@@ -10,10 +10,16 @@ def remap_values(context, df):
     census_values_dict, _ = context.stage("preprocess.coded_values")
 
     df = df.dropna(subset = ['employment', 'sex', 'zone_id']) 
-    df.loc[:, 'sex'] = df['sex'].replace([1, 2], ['M', 'F'])
+    
+    #fill NA values
+    df['age'].replace(999, np.nan, inplace=True)
     df.loc[:, 'age'] = df['age'].fillna(df.groupby(['sex', 'employment'])['age'].transform('median')).astype(int)
+    df['employment'].replace(99, np.nan, inplace=True)
+    df = df.groupby(['sex', 'age']).apply(lambda x: x.fillna(x.mode().iloc[0])).sort_values('person_id').reset_index(drop=True)
+    
+    #remap values
+    df.loc[:, 'sex'] = df['sex'].replace([1, 2], ['M', 'F'])
     df.loc[:, 'employment'] = df['employment'].replace(census_values_dict['employment_values'], census_values_dict['employment_list'])
-
     return df
 
 def filter_by_region(df, region_id):
@@ -25,6 +31,7 @@ def configure(context):
     context.config("data_path")
     context.config("census_file")
     context.stage("preprocess.coded_values")
+    context.config("output_path")
 
 def execute(context):
     df_census = pd.read_csv(context.config("data_path") + context.config("census_file"), delimiter=";")
@@ -33,8 +40,9 @@ def execute(context):
     
     #chosen area only, Prague = 3018
     df_census = filter_by_region(df_census, 3018)
-    df_census = remap_values(context, df_census)
+    #df_census.to_csv(context.config("output_path") + "sldb_praha.csv", index = False, sep=';')
 
-    df_census.loc[:, 'zone_id'] = df_census['zone_id'].astype(str)
+    #fill in and remap missing values
+    df_census = remap_values(context, df_census)
     df_census = df_census.reset_index(drop=True)
     return df_census

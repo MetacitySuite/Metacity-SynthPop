@@ -1,4 +1,5 @@
-import pandas as pd
+#import pandas as pd
+import numpy as np
 
 def configure(context):
     ...
@@ -30,11 +31,10 @@ def execute(context):
                                                         'other unemployed', 'maternity leave']
 
     #census
-    census_values_dict['employment_values'] = [1, 2, 3, 4, 6, 7, 8, 11, 12, 13, 99]
+    census_values_dict['employment_values'] = [1, 2, 3, 4, 6, 7, 8, 11, 12, 13]
     census_values_dict['employment_list'] = ['employee, employer, self-employed, or helping', 'working retiree', 
                         'working students and apprentices', 'maternity leave', 
                         'non-working retiree', 'with own source of living', 'pupils, students, apprentices', 
-                        'unemployed seeking first employment', 'other unemployed', 'person in household, pre-school child, other dependents', 
-                        pd.NA]
+                        'unemployed seeking first employment', 'other unemployed', 'person in household, pre-school child, other dependents']
     
     return census_values_dict, travel_survey_values_dict

@@ -12,7 +12,8 @@ run:
   #- preprocess.clean_travel_survey
   #- preprocess.clean_census
   #- synthesis.locations.census_home
-  - synthesis.population.matched
+  #- synthesis.population.matched
+  #- test
   
   #- synthesis.out
   
@@ -25,10 +26,13 @@ config:
   census_file: census/SLDB 2011-13_10_2021/SLDB_AMOS_obaKraje.csv
   travel_survey_files: travel-survey/CvP-11_10_2021/
   osm_file: "osm/prague-small.osm.pbf"
+  district_file: "zones/KodUzemi_MC.csv"
+  district_mapping_file: "zones/Chybejici_MC.csv"
   shape_file_commercial: "shp/VYBAVENOST/FSV_KomerVybav_b.shp"
   shape_file_amenity: "shp/VYBAVENOST/FSV_ObcanVybav_b.shp"
   shape_file_leisure: "shp/VYBAVENOST/FSV_RekreVybav_b.shp"
   shape_file_zones: "shp/SHP_kodZSJ/KodUzemi_Praha.shp"
+  shape_file_districts: "shp/MOMC/MOMC_P.shp"
   shape_file_home: "shp/OBYVATELSTVO/obyv_adr_body.shp"
   poi_tags_work: "tags-shp/work.json"
   poi_tags_education: "tags-shp/education.json"

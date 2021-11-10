@@ -21,7 +21,7 @@ def clean_household_data(context, df):
     car_list = ['car_private', 'car_company', 'car_util', 'car_other']
     df['car_number'] = df[car_list].sum(axis=1)
     df = df.drop(car_list, axis=1)
-    df = df[['household_id', 'district', 'persons_number', 'car_number', 'bike_number']]
+    df = df[['household_id', 'district_name', 'persons_number', 'car_number', 'bike_number']]
     return df
 
 """
@@ -30,7 +30,7 @@ Clean table P (Person).
 
 def clean_traveler_data(context, df):
     #drop rows with incomplete data
-    df = df.dropna(subset = ['sex', 'employment', 'work_status', 'car_avail'])
+    df = df.dropna(subset = ['sex', 'employment'])
     
     #values for remapping
     _, ts_values_dict = context.stage("preprocess.coded_values")
@@ -46,12 +46,8 @@ def clean_traveler_data(context, df):
     df.loc[:, 'car_avail'] = df['car_avail'].replace(['ano', 'ne'], [True, False])
     df.loc[:, 'bike_avail'] = df['bike_avail'].replace(['ano', 'ne'], [True, False])
     df.loc[:, 'pt_avail'] = df['pt_avail'].replace(['ano', 'ne'], [True, False])
-    df.loc[:, 'work_status'] = df['work_status'].replace(['ano', 'ne'], ['yes', 'no'])
     df.loc[:, 'employment'] = df['employment'].replace(employment_list_cz, employment_list)
     
-    #add student as new work status
-    df.loc[df['employment'].isin(ts_values_dict['edu_list']), 'work_status'] = "education"
-
     #remap original column (driving_license_none)
     df.loc[:, 'driving_license'] = df['driving_license'].replace(['ano', 'ne'], [False, True])
 
@@ -61,8 +57,7 @@ def clean_traveler_data(context, df):
     df.loc[(df['age'] < 16) | (df['age'] > 64), 'pt_avail'] = True
 
     #finally drop NA in pt_avail
-    df = df.dropna(subset = ['pt_avail'])
-    #print(df.loc[(df['employment'].isin(employed_list_cz)) & (df['work_status'] == 'no'), ['employment', 'work_status']])
+    #df = df.dropna(subset = ['pt_avail'])
     return df
 
 """
@@ -142,19 +137,22 @@ def clean_trip_data(context, df, inside_area_only = True, area_code = 1000):
                                 (df['traveling_mode'].isna())]['traveler_id'].unique()
     df = df.loc[~df['traveler_id'].isin(removed_travelers)]
     
-    #expect trips to start and end in the same area code
+    #TODO
+    #mark trips outside area
     df.loc[:, 'origin_code'] = df['origin_code'].fillna(df['destination_code'])
     df.loc[:, 'destination_code'] = df['destination_code'].fillna(df['origin_code'])
     df.loc[:, 'origin_code'] = df['origin_code'].fillna(-1)
     df.loc[:, 'destination_code'] = df['destination_code'].fillna(-1)
     df.loc[:, 'origin_code'] = df['origin_code'].astype(int)
     df.loc[:, 'destination_code'] = df['destination_code'].astype(int)
+    
     #remove travelers that leave or enter Prague during the day
     if(inside_area_only):
         removed_travelers = df.loc[(df['origin_code'] != area_code) | (df['destination_code'] != area_code)]['traveler_id'].unique()
         df = df.loc[~df['traveler_id'].isin(removed_travelers)]
     else: #TODO
         ...
+        
     #drop columns not useful anymore
     df = df.drop(['origin_code', 'destination_code'], axis=1)
     #clean and connect activity chains, purge nonsense
@@ -224,16 +222,16 @@ def execute(context):
 
     #filter and rename columns
     df_hh = df_hh[['H_ID', 'NAZ_MOaMC', 'H_persons', 'H_venr_car_private', 'H_venr_car_company', 'H_venr_util', 'H_venr_other','H_venr_bike']]
-    df_hh.columns = ['household_id', 'district', 'persons_number', 'car_private', 'car_company', 'car_util', 'car_other', 'bike_number']
+    df_hh.columns = ['household_id', 'district_name', 'persons_number', 'car_private', 'car_company', 'car_util', 'car_other', 'bike_number']
 
 
     df_travelers = df_persons[['P_ID', 'H_ID', 'P_gender', 'P_age', 
-                            'P_work', 'P_work_status', 
+                            'P_work', 
                             'P_driving_licence_none', 'P_triptoday', 
                             'P_caravail', 'P_bikeavail', 'P_ptavail' ]]
 
     df_travelers.columns = ['traveler_id', 'household_id', 'sex', 'age', 
-                            'employment', 'work_status', 
+                            'employment',
                             'driving_license', 'trip_today', 
                             'car_avail', 'bike_avail', 'pt_avail']
 
@@ -247,9 +245,18 @@ def execute(context):
                         'origin_purpose', 'destination_purpose', 'last_trip',
                         'beeline', 'traveling_mode', 'origin_code', 'destination_code']
 
+    print(len(df_hh))
+    print(len(df_travelers))
+    print(len(df_trips))
+
+    
     df_hh = clean_household_data(context, df_hh)
     df_travelers = clean_traveler_data(context, df_travelers)
     df_trips = clean_trip_data(context, df_trips)
+
+    print(len(df_hh))
+    print(len(df_travelers))
+    print(len(df_trips))
 
     #re-connect all data
     df_hh, df_travelers, df_trips = connect_tables(df_hh, df_travelers, df_trips)

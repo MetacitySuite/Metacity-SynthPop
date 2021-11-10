@@ -36,7 +36,7 @@ def execute(context):
     # for each zone sample enough houses for the people living in it
     all_zones = df_census['zone_id'].unique()
 
-    #all_zones = ['554782370', '554782895']
+    #all_zones = [554782370, 554782895]
     #al = df_census.groupby(['zone_id']).size().reset_index(name='counts')
     #print(al.sort_values(by=['counts']))
     
@@ -57,4 +57,5 @@ def execute(context):
     #reset indices and reorder columns
     df_census_home = df_census_home.reset_index(drop=True)
     df_census_home = df_census_home[['person_id', 'sex', 'age', 'employment', 'residence_id', 'zone_id']]
+    print(df_census_home.dtypes)
     return df_census_home

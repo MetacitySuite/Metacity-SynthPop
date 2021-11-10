@@ -27,4 +27,7 @@ def execute(context):
     #drop unsjoined houses
     df_home = df_home.dropna(subset=['zone_id'])   
     df_home = df_home.reset_index(drop=True)
+    
+    df_home.loc[:, 'zone_id'] = df_home['zone_id'].astype(int)
+    df_home.loc[:, 'district_id'] = df_home['district_id'].astype(int)
     return df_home
