@@ -136,9 +136,6 @@ def fill_missing_area_code(context, df):
     
     #work commute - fill na with people staying in the area to preserve distribution according to commute probabilities
     na_index_work = get_commute_trips(df_c, ['work']).index
-    df_d = df.loc[na_index_work]
-    df_d.to_csv(context.config("output_path") + "T-4c.csv", index = False, sep=';')
-
     df.loc[na_index_work, 'origin_code'] = df.loc[na_index_work, 'origin_code'].fillna(area_code)
     df.loc[na_index_work, 'destination_code'] = df.loc[na_index_work, 'destination_code'].fillna(area_code)
 
