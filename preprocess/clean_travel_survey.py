@@ -7,6 +7,13 @@ from tqdm import tqdm
 This stage cleans the travel survey. The travel survey consists of three tables: H (Households), P (Persons - travelers), T (Trips).
 """
 
+##TODO: add dummy trip to matsim XML: end time = arrival time, same coordinates, change activity
+##agents start and end the day with same type activity (does not need same place)
+#first_origin = df_daily_plan.loc[(df_daily_plan['trip_order'] == 1)]['origin_purpose'].values[0]
+#last_destination = df_daily_plan.loc[(df_daily_plan['trip_order'] == trip_count)]['destination_purpose'].values[0]
+
+#if(first_origin != last_destination):
+#    ...
 
 #Suppress possible (false positive) warning - returning a view versus a copy.
 #pd.options.mode.chained_assignment = None  # default='warn'
@@ -67,9 +74,6 @@ Check if the trips done by a person are connected.
 
 def clean_activity_chain(df):
     primary = ['home', 'work', 'education']
-    #remove travelers who do not have any destination at home
-    travelers_with_home = df.loc[ (df['origin_purpose'] == 'home') | (df['destination_purpose'] == 'home') ]['traveler_id'].unique()
-    df = df.loc[df['traveler_id'].isin(travelers_with_home)]
 
     #check if travelers have meaningful connected trip order
     df_trips_count = df.groupby('traveler_id').size().reset_index(name='trips')
@@ -100,14 +104,64 @@ def clean_activity_chain(df):
                 break
 
     df = df.loc[~df['traveler_id'].isin(deleted_travelers)]
+    return df
 
-    ##TODO: add dummy trip to matsim XML: end time = arrival time, same coordinates, change activity
-    ##agents start and end the day with same type activity (does not need same place)
-    #first_origin = df_daily_plan.loc[(df_daily_plan['trip_order'] == 1)]['origin_purpose'].values[0]
-    #last_destination = df_daily_plan.loc[(df_daily_plan['trip_order'] == trip_count)]['destination_purpose'].values[0]
+def calculate_row_percentage(df, column, value, sumcolumn = None):
+    if(sumcolumn != None):
+        count = df.loc[ (df[column] == value), sumcolumn].sum()
+        total = df[sumcolumn].sum()
+    else:
+        count = len(df.loc[ (df[column] == value)])
+        total = len(df)
+    return count/total
 
-    #if(first_origin != last_destination):
-    #    ...
+def get_commute_trips(df, purpose):
+    df_com = df.loc[ 
+               ( (df['origin_purpose'] == 'home') &  (df['destination_purpose'].isin(purpose))   ) | 
+               ( (df['origin_purpose'].isin(purpose)) & (df['destination_purpose'] == 'home')    ) ]
+    return df_com
+
+def fill_missing_area_code(context, df):
+    area_code = context.config("prague_area_code")
+    df_commute_work, df_commute_edu = context.stage("preprocess.clean_commute_prob")
+    df_commute = pd.concat([df_commute_work, df_commute_edu])
+    
+    #outside_area_work_prob = calculate_row_percentage(df_commute_work, 'commute_zone_id', 999, 'person_number')
+    #outside_area_education_prob = calculate_row_percentage(df_commute_edu, 'commute_zone_id', 999, 'person_number')
+    #outside_area_prob = calculate_row_percentage(df_commute,'commute_zone_id', 999, 'person_number')
+
+    df_c = df.loc[ (df['origin_code'].isna()) | (df['destination_code'].isna()) ]
+
+    #df_c.to_csv(context.config("output_path") + "T-4b.csv", index = False, sep=';')
+    
+    #work commute - fill na with people staying in the area to preserve distribution according to commute probabilities
+    na_index_work = get_commute_trips(df_c, ['work']).index
+    df_d = df.loc[na_index_work]
+    df_d.to_csv(context.config("output_path") + "T-4c.csv", index = False, sep=';')
+
+    df.loc[na_index_work, 'origin_code'] = df.loc[na_index_work, 'origin_code'].fillna(area_code)
+    df.loc[na_index_work, 'destination_code'] = df.loc[na_index_work, 'destination_code'].fillna(area_code)
+
+    #education commute - fill na with people staying in the area
+    na_index_edu = get_commute_trips(df_c, ['education']).index
+    df.loc[na_index_edu, 'origin_code'] = df.loc[na_index_edu, 'origin_code'].fillna(area_code)
+    df.loc[na_index_edu, 'destination_code'] = df.loc[na_index_edu, 'destination_code'].fillna(area_code)
+    return df
+
+"""
+Filter trips by area code - home purposes must be in given area
+Commuters to work/education stay in area as well.
+"""
+def filter_trips_by_area(context, df):
+    area_code = context.config("prague_area_code")
+
+    #keep travelers who live in the area, delete NA as well (0.7% of data)
+    live_inside_area = df.loc[ (df['origin_purpose'] == 'home') & (df['origin_code'] == area_code)]['traveler_id']
+    live_inside_area.append = df.loc[ (df['destination_purpose'] == 'home') & (df['destination_code'] == area_code )]['traveler_id']
+    df = df.loc[df['traveler_id'].isin(live_inside_area)]
+
+    #fill in missing area for work and education
+    df = fill_missing_area_code(context, df)
 
     return df
 
@@ -118,7 +172,7 @@ Fills NA in origin and destination code based on either one of those (expect tri
 For now remove travelers leaving and/or entering chosen area during the day.
 Validates activity chain.
 """
-def clean_trip_data(context, df, inside_area_only = True, area_code = 1000):
+def clean_trip_data(context, df):
     #remap values
     _, ts_values_dict = context.stage("preprocess.coded_values")
     df.loc[:, 'origin_purpose'] = df['origin_purpose'].replace(ts_values_dict["purpose_list_cz"], ts_values_dict["purpose_list"])
@@ -136,25 +190,14 @@ def clean_trip_data(context, df, inside_area_only = True, area_code = 1000):
                                 (df['origin_purpose'].isna()) | (df['destination_purpose'].isna()) |
                                 (df['traveling_mode'].isna())]['traveler_id'].unique()
     df = df.loc[~df['traveler_id'].isin(removed_travelers)]
+
+    #remove travelers who do not have any destination at home
+    travelers_with_home = df.loc[ (df['origin_purpose'] == 'home') | (df['destination_purpose'] == 'home') ]['traveler_id'].unique()
+    df = df.loc[df['traveler_id'].isin(travelers_with_home)]
+
+    #filter and clean trips outside the area code
+    df = filter_trips_by_area(context, df)
     
-    #TODO
-    #mark trips outside area
-    df.loc[:, 'origin_code'] = df['origin_code'].fillna(df['destination_code'])
-    df.loc[:, 'destination_code'] = df['destination_code'].fillna(df['origin_code'])
-    df.loc[:, 'origin_code'] = df['origin_code'].fillna(-1)
-    df.loc[:, 'destination_code'] = df['destination_code'].fillna(-1)
-    df.loc[:, 'origin_code'] = df['origin_code'].astype(int)
-    df.loc[:, 'destination_code'] = df['destination_code'].astype(int)
-    
-    #remove travelers that leave or enter Prague during the day
-    if(inside_area_only):
-        removed_travelers = df.loc[(df['origin_code'] != area_code) | (df['destination_code'] != area_code)]['traveler_id'].unique()
-        df = df.loc[~df['traveler_id'].isin(removed_travelers)]
-    else: #TODO
-        ...
-        
-    #drop columns not useful anymore
-    df = df.drop(['origin_code', 'destination_code'], axis=1)
     #clean and connect activity chains, purge nonsense
     df = clean_activity_chain(df)
     return df
@@ -212,7 +255,10 @@ def connect_tables(df_hh, df_travelers, df_trips):
 def configure(context):
     context.config("data_path")
     context.config("travel_survey_files")
+    context.config("prague_area_code")
     context.stage("preprocess.coded_values")
+    context.stage("preprocess.clean_commute_prob")
+    context.config("output_path")
 
 def execute(context):
     #read CSV data
@@ -245,19 +291,31 @@ def execute(context):
                         'origin_purpose', 'destination_purpose', 'last_trip',
                         'beeline', 'traveling_mode', 'origin_code', 'destination_code']
 
-    print(len(df_hh))
-    print(len(df_travelers))
-    print(len(df_trips))
-
-    
     df_hh = clean_household_data(context, df_hh)
     df_travelers = clean_traveler_data(context, df_travelers)
     df_trips = clean_trip_data(context, df_trips)
+    
+    #drop columns not useful anymore
+    #df_trips = df_trips.drop(['origin_code', 'destination_code'], axis=1)
 
-    print(len(df_hh))
-    print(len(df_travelers))
-    print(len(df_trips))
+    #TODO
+    #print(len(df_hh))
+    #_, ts_values_dict = context.stage("preprocess.coded_values")
+    #df_commute_work, df_commute_edu = context.stage("preprocess.clean_commute_prob")
 
+    #print("Travelers: " + str(len(df_travelers)))
+    #print("Non-traveling: " + str(len(df_travelers.loc[df_travelers['trip_today'] == False])))
+    #print("Travelers education: " + str(len(df_travelers.loc[ df_travelers['employment'].isin(ts_values_dict['edu_list']) ])))
+    #print("Trvalers work: " + str(len(df_travelers.loc[ df_travelers['employment'].isin(ts_values_dict["employed_list"]) ])))
+    #print("Travelers education (census): ")
+    #print(df_commute_edu['person_number'].sum())
+    #print("Travelers work (census): ")
+    #print(df_commute_work['person_number'].sum())
+    
     #re-connect all data
     df_hh, df_travelers, df_trips = connect_tables(df_hh, df_travelers, df_trips)
+
+
+
+
     return df_hh, df_travelers, df_trips

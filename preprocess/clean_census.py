@@ -13,9 +13,18 @@ def remap_values(context, df):
     
     #fill NA values
     df['age'].replace(999, np.nan, inplace=True)
+    #df = df.reset_index(drop=True)
+    #na_index = df[df.age.isna()].index
+    #value = np.random.normal(loc=df['age'].mean(), scale=df['age'].std(), size=df['age'].isna().sum())
+    #df['age'].fillna(pd.Series(value, index=na_index), inplace=True)
     df.loc[:, 'age'] = df['age'].fillna(df.groupby(['sex', 'employment'])['age'].transform('median')).astype(int)
     df['employment'].replace(99, np.nan, inplace=True)
     df = df.groupby(['sex', 'age']).apply(lambda x: x.fillna(x.mode().iloc[0])).sort_values('person_id').reset_index(drop=True)
+
+    #sociodemographics
+    df.loc[( df['age'] >= 65) & (df['employment'].isna()) , 'employment'] = 6.0
+    df.loc[( df['age'] <= 5)  & (df['employment'].isna()), 'employment'] = 13.0
+    df.loc[( df['age'] > 5) & (df['age'] <= 15) & (df['employment'].isna()) , 'employment'] = 8.0
     
     #remap values
     df.loc[:, 'sex'] = df['sex'].replace([1, 2], ['M', 'F'])
@@ -30,8 +39,10 @@ def filter_by_region(df, region_id):
 def configure(context):
     context.config("data_path")
     context.config("census_file")
+    context.config("prague_region_code")
     context.stage("preprocess.coded_values")
-    context.config("output_path")
+
+    #context.config("output_path")
 
 def execute(context):
     df_census = pd.read_csv(context.config("data_path") + context.config("census_file"), delimiter=";")
@@ -39,7 +50,8 @@ def execute(context):
     df_census.columns = ['person_id', 'region_id', 'zone_id', 'sex', 'age', 'employment']
     
     #chosen area only, Prague = 3018
-    df_census = filter_by_region(df_census, 3018)
+    df_census = filter_by_region(df_census, context.config("prague_region_code")
+)
     #df_census.to_csv(context.config("output_path") + "sldb_praha.csv", index = False, sep=';')
 
     #fill in and remap missing values

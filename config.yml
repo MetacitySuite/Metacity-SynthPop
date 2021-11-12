@@ -8,26 +8,29 @@ run:
   #- preprocess.zones
   #- preprocess.extract_amenities
   #- preprocess.home
+  # - preprocess.clean_commute_prob
   
-  #- preprocess.clean_travel_survey
+  # - preprocess.clean_travel_survey
   #- preprocess.clean_census
   #- synthesis.locations.census_home
   #- synthesis.population.matched
   #- test
-  
-  #- synthesis.out
+  - synthesis.out
   
 config:
   data_path: /home/metakocour/Projects/Metacity-SynthPop/data/
   output_path: /home/metakocour/Projects/Metacity-SynthPop/output/
   epsg: "EPSG:5514"
   seed: 8463
+  prague_area_code: 1000
+  prague_region_code: 3018
 
   census_file: census/SLDB 2011-13_10_2021/SLDB_AMOS_obaKraje.csv
   travel_survey_files: travel-survey/CvP-11_10_2021/
   osm_file: "osm/prague-small.osm.pbf"
   district_file: "zones/KodUzemi_MC.csv"
   district_mapping_file: "zones/Chybejici_MC.csv"
+  commute_probability_file: "zones/pravdepodobnost_dojizdky.csv"
   shape_file_commercial: "shp/VYBAVENOST/FSV_KomerVybav_b.shp"
   shape_file_amenity: "shp/VYBAVENOST/FSV_ObcanVybav_b.shp"
   shape_file_leisure: "shp/VYBAVENOST/FSV_RekreVybav_b.shp"
