@@ -10,12 +10,12 @@ run:
   #- preprocess.home
   # - preprocess.clean_commute_prob
   
-  # - preprocess.clean_travel_survey
+  #- preprocess.clean_travel_survey
   #- preprocess.clean_census
   #- synthesis.locations.census_home
-  #- synthesis.population.matched
+  - synthesis.population.matched
   #- test
-  - synthesis.out
+  #- synthesis.out
   
 config:
   data_path: /home/metakocour/Projects/Metacity-SynthPop/data/
@@ -43,3 +43,4 @@ config:
   poi_tags_leisure: "tags-shp/leisure.json"
 
   matching_minimum_samples: 10
+  cpu_threads: 4
