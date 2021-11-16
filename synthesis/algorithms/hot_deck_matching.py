@@ -100,20 +100,22 @@ class HotDeckMatcher:
                     progress.update()
         return matrix
 
-def run(df_target, df_source, source_id_column, mandatory_fields, preferred_fields, default_id, minimum_source_samples = 1, threads = 1):
+def run(df_target, df_source, source_id_column, mandatory_fields, preferred_fields, default_id = -1, minimum_source_samples = 1, process_num = 1):
     matcher = HotDeckMatcher(df_source, source_id_column, mandatory_fields, preferred_fields, default_id, minimum_source_samples)
-    if threads > 1:
-        with mp.Pool(processes = threads, initializer = initializer, initargs = (matcher,)) as pool:
-            chunks = np.array_split(df_target, threads)
-            df_target.loc[:, "hdm_source_id"] = np.hstack(pool.map(running_thread, enumerate(chunks)))
+    if process_num > 1:
+        
+        with mp.Pool(processes = process_num, initializer = initializer, initargs = (matcher,)) as pool:
+            chunks = np.array_split(df_target, process_num)
+            df_target.loc[:, "hdm_source_id"] = np.hstack(pool.map(running_process, enumerate(chunks)))
     else:
         df_target.loc[:, "hdm_source_id"] = matcher(df_target, 0)
 
 matcher = None
+
 def initializer(_matcher):
     global matcher
     matcher = _matcher
 
-def running_thread(args):
+def running_process(args):
     index, df_chunk = args
     return matcher(df_chunk, index)

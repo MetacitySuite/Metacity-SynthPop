@@ -42,5 +42,5 @@ config:
   poi_tags_shop: "tags-shp/shop.json"
   poi_tags_leisure: "tags-shp/leisure.json"
 
-  matching_minimum_samples: 10
-  cpu_threads: 4
+  matching_minimum_samples: 5
+  matching_processes: 4
