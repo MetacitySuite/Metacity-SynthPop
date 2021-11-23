@@ -39,9 +39,31 @@ def execute(context):
     df_target = df_census
 
     #set age class for better matching
-    AGE_BOUNDARIES = [15, 26, 45, 65, 80, np.inf]
+    AGE_BOUNDARIES = [15, 26, 45, 65, np.inf]
     df_source["age_class"] = np.digitize(df_source["age"], AGE_BOUNDARIES, right = True)
     df_target["age_class"] = np.digitize(df_target["age"], AGE_BOUNDARIES, right = True)
+
+    # group employment to fewer categories
+    employment_map = {'employee, employer, self-employed, or helping' : "employed", 
+                        'working retiree' : "employed",
+                        'non-working retiree' : "unemployed", 
+                        'pupils, students, apprentices' : "student", 
+                        'maternity leave' : "unemployed",  
+                        'with own source of living' : "employed",
+                        'person in household, pre-school child, other dependents' : "unemployed", 
+                        'other unemployed' : "unemployed", 
+                        'unemployed seeking first employment' : "unemployed", 
+                        'working students and apprentices' : "student"
+                        }
+
+    df_source.employment = df_source.employment.map(employment_map)
+    df_target.employment = df_target.employment.map(employment_map)
+
+    #print(df_source.employment.unique())
+    #print(df_target.employment.unique())
+    #return
+
+            
 
     #add district_name column for pairing
     df_source = df_source.merge(df_households, on='household_id')
@@ -63,8 +85,9 @@ def execute(context):
 
 
     #TODO - clean unmatched people from census?
-
+    # must aggregate employment imoS
     print(len(df_target.loc[df_target['hdm_source_id'] == -1]))
+    return
 
     #return matched census individuals
-    return 
+    return df_target
