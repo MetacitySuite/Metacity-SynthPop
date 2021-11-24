@@ -39,11 +39,19 @@ def extract_travel_demands(employed_trip):
 
     
 
-def extract_trip_counts(demand_k, pi_k):
-    f_kk = pd.DataFrame()
-    f_kk.columns = ["origin", "destination", "trip_count"]
+def extract_trip_counts(k, demand_k, pi_k, other_dests):
+    f_k = pd.DataFrame()#columns=["origin", "destination", "trip_count"])
 
-    f_kk[str(o_k1)] = np.random.multinomial(demand_k, pi_k)
+    counts = list(np.random.multinomial(demand_k, pi_k.probability))
+    counts.extend([0]*len(other_dests))
+
+    dests = list(pi_k.commute_zone_id)
+    dests.extend(other_dests)
+    f_k["destination"] = dests
+    f_k["trip_count"] = counts
+    f_k["origin"] = k
+    #print(f_k.head())
+    return f_k
 
 
 
@@ -56,10 +64,6 @@ def execute(context):
         df_workplaces[col] = df_workplaces[col].fillna(-1).astype(int)
         print("Missing",col, len(df_workplaces.iloc[np.where(df_workplaces[col] == -1)]))
 
-    
-    #create activity chains
-    print(df_travelers.head())
-    print(df_trips.head())
 
     employed_trip = extract_travelling_workers(df_trips, df_matched, context.config("prague_area_code"))
     O_k = extract_travel_demands(employed_trip)
@@ -69,19 +73,23 @@ def execute(context):
 
 
     f_kk = pd.DataFrame(columns=["origin", "destination", "trip_count"])
-    unique_zones = pi_k.commute_zone_id.unique()
-    print(pi_kk.head())
-    for o_k in O_k.keys:
-        pi_k = pd.DataFrame(pi_kk[pi_kk.home_zone_id == o_k])
-        f_kk.append(extract_trip_counts(O_k[o_k], pi_k))
+    unique_zones = pi_kk.commute_zone_id.unique()
 
+    for k in pi_kk.home_zone_id.unique():
+        pi_k = pi_kk[pi_kk.home_zone_id == k]
+        other_ids = [ u for u in unique_zones if not u in list(pi_k.commute_zone_id)]
+        f_kk = f_kk.append(extract_trip_counts(k, O_k[k], pi_k, other_ids))
     
-    
-    #print(df_workplaces.head())
+    print(f_kk.head())
+
+    #validate trip counts
+    #f_k = f_kk.groupby("origin")
+    #for i,f in f_k:
+    #    print(i, O_k[i], f.trip_count.sum())
+
+    #sample destination candidates with replacement for each f_kk in 
+    C_kk = set()
+
+
 
     return
-    #load activity chains to df matched
-    #df_persons['employed'] = df_persons['employed'].map({1 : "yes", 2 : "yes", 
-    #                                                 3 : "yes", 4 : "no", 5 : "no", 
-    #                                                 6 : "no", 7 : "no", 8 : "student"})
-    #df_persons.loc[(~(df_persons["studying"]== 1)) & (df_persons['employed']=='no'), "employed"] = "student"
