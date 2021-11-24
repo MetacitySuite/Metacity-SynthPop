@@ -39,7 +39,7 @@ def execute(context):
     df_target = df_census
 
     #set age class for better matching
-    AGE_BOUNDARIES = [15, 26, 45, 65, np.inf]
+    AGE_BOUNDARIES = [15, 30, 45, 65, 75, np.inf]
     df_source["age_class"] = np.digitize(df_source["age"], AGE_BOUNDARIES, right = True)
     df_target["age_class"] = np.digitize(df_target["age"], AGE_BOUNDARIES, right = True)
 
@@ -53,7 +53,7 @@ def execute(context):
                         'person in household, pre-school child, other dependents' : "unemployed", 
                         'other unemployed' : "unemployed", 
                         'unemployed seeking first employment' : "unemployed", 
-                        'working students and apprentices' : "student"
+                        'working students and apprentices' : "employed"
                         }
 
     df_source.employment = df_source.employment.map(employment_map)
@@ -85,9 +85,12 @@ def execute(context):
 
 
     #TODO - clean unmatched people from census?
-    # must aggregate employment imoS
-    print(len(df_target.loc[df_target['hdm_source_id'] == -1]))
-    return
-
+    # must aggregate employment imo
+    unmatched = df_target.loc[df_target['hdm_source_id'] == -1]
+    print("Unmatched (#) in census:",len(unmatched))
+    print(unmatched)
+    df_target.drop(unmatched.index, axis=0, inplace=True)
+    df_target.reset_index(inplace=True)
+    #print(len(df_target.loc[df_target['hdm_source_id'] == -1]))
     #return matched census individuals
     return df_target
