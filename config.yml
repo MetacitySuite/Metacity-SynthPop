@@ -4,6 +4,7 @@
 # This is the path to a directory where the pipeline can store temporary data
 working_directory: /home/metamat/anicka/Metacity-SynthPop/cache/
 
+
 run:
   #- preprocess.zones
   #- preprocess.extract_amenities
@@ -13,13 +14,15 @@ run:
   #- preprocess.clean_travel_survey
   #- preprocess.clean_census
   #- synthesis.locations.census_home
-  - synthesis.population.matched
+  #- synthesis.population.matched
+  - preprocess.extract_matched_ts_metadata
   #- test
   #- synthesis.out
   
 config:
   data_path: /home/metamat/anicka/data/
   output_path: /home/metamat/anicka/Metacity-SynthPop/output/
+  project_directory: /home/metamat/anicka/Metacity-SynthPop/
   epsg: "EPSG:5514"
   seed: 8463
   prague_area_code: 1000

@@ -24,6 +24,7 @@ def configure(context):
     context.config("poi_tags_education")
     context.config("poi_tags_shop")
     context.config("poi_tags_leisure")
+    context.config("project_directory")
 
     context.stage("preprocess.zones")
 
@@ -47,7 +48,7 @@ def execute(context):
     #load jisons
     for pt in poi_types:
         filename = "poi_tags_" + pt
-        file = open(context.config("data_path") + context.config(filename))
+        file = open(context.config("project_directory") +"tags/"+ context.config(filename))
         amenity[pt] = json.load(file)
 
     #extract amenitites coordinates and spatial join with zones

@@ -53,17 +53,12 @@ def execute(context):
                         'person in household, pre-school child, other dependents' : "unemployed", 
                         'other unemployed' : "unemployed", 
                         'unemployed seeking first employment' : "unemployed", 
-                        'working students and apprentices' : "employed"
+                        'working students and apprentices' : "student"
                         }
 
     df_source.employment = df_source.employment.map(employment_map)
     df_target.employment = df_target.employment.map(employment_map)
 
-    #print(df_source.employment.unique())
-    #print(df_target.employment.unique())
-    #return
-
-            
 
     #add district_name column for pairing
     df_source = df_source.merge(df_households, on='household_id')
@@ -83,12 +78,10 @@ def execute(context):
         process_num = context.config("matching_processes")
     )
 
-
-    #TODO - clean unmatched people from census?
-    # must aggregate employment imo
+    #remove non-matched people from census
     unmatched = df_target.loc[df_target['hdm_source_id'] == -1]
     print("Unmatched (#) in census:",len(unmatched))
-    print(unmatched)
+    print(unmatched.employment.value_counts())
     df_target.drop(unmatched.index, axis=0, inplace=True)
     df_target.reset_index(inplace=True)
     #print(len(df_target.loc[df_target['hdm_source_id'] == -1]))
