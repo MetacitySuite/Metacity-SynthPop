@@ -15,7 +15,7 @@ run:
   #- preprocess.clean_census
   #- synthesis.locations.census_home
   #- synthesis.population.matched
-  - preprocess.extract_matched_ts_metadata
+  - synthesis.locations.matched_work
   #- test
   #- synthesis.out
   

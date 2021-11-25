@@ -14,7 +14,7 @@ def remap_districts(context, df):
     df_district_mapping['district_name'] = df_district_mapping['district_name'].apply(lambda x: correct_string(x))
     df_district_mapping['mapped_district_name'] = df_district_mapping['mapped_district_name'].apply(lambda x: correct_string(x))
     df = df.merge(df_district_mapping, on='district_name')
-    df = df.drop(['district_name'], axis = 1)
+    df = df.drop(['district_name', "zone_centroid"], axis = 1)
     df.columns = ['person_id', 'zone_id', 'sex', 'age', 'employment', 'age_class', 'district_name']
     return df
 
