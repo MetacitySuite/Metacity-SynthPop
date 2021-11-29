@@ -2,7 +2,7 @@
 ## based on the synpp package
 
 # This is the path to a directory where the pipeline can store temporary data
-working_directory: /home/metamat/anicka/Metacity-SynthPop/cache/
+working_directory: C:\Users\Anna\Metacity\Metacity-SynthPop\cache\
 
 
 run:
@@ -20,9 +20,9 @@ run:
   #- synthesis.out
   
 config:
-  data_path: /home/metamat/anicka/data/
-  output_path: /home/metamat/anicka/Metacity-SynthPop/output/
-  project_directory: /home/metamat/anicka/Metacity-SynthPop/
+  data_path: C:\Users\Anna\Metacity\data\
+  output_path: C:\Users\Anna\Metacity\Metacity-SynthPop\output\
+  project_directory: C:\Users\Anna\Metacity/Metacity-SynthPop/
   epsg: "EPSG:5514"
   seed: 8463
   prague_area_code: 1000
