@@ -171,4 +171,5 @@ misc/RandomData
 data/*
 
 # Config files
+config.yml
 *.yml
