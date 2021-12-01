@@ -13,20 +13,31 @@ def configure(context):
 
 
 def extract_commute_distances(df_people, df_trips):
+    print("Extracting commute distances:")
+    print("\tAll trips:", df_trips.shape[0])
+    print("\tTrips with missing beeline:", len(df_trips[df_trips.beeline.isna()]))
     work_trips = df_trips[df_trips.destination_purpose == "work"]
-    #remove trips that end outside prague
+    work_trips = work_trips[work_trips.origin_purpose == "home"]
+
+    #remove trips that end outside prague which would skew the beeline data
     work_trips = work_trips[work_trips.destination_code != 999]
+    print("\tWork trips:", len(work_trips))
 
     #fill in beeline - use origin, destination code (27perc missing)
     beeline_median = work_trips.groupby(['origin_code', 'destination_code'])['beeline'].transform('median')
-    work_trips.beeline = work_trips['beeline'].fillna(value=beeline_median)
+    df_trips.beeline = df_trips['beeline'].fillna(value=beeline_median)
+    print("\tTrips with missing beeline:", len(df_trips[df_trips.beeline.isna()]))
     #fill rest with median
-    work_trips.beeline = work_trips['beeline'].fillna(value=work_trips['beeline'].median())
+    df_trips.beeline = df_trips['beeline'].fillna(value=work_trips['beeline'].median())
+    print("\tTrips with missing beeline:", len(df_trips[df_trips.beeline.isna()]))
     
-    print(len(df_people.hdm_source_id.isna()))
-    work_trips = work_trips.loc[work_trips.traveler_id.isin(df_people.hdm_source_id.unique())]
+    print("\tCensus people to fill with beeline:",df_people.shape[0])
+    work_trips = df_trips.loc[df_trips.traveler_id.isin(df_people.hdm_source_id.unique())]
+    work_trips = work_trips.drop_duplicates(["traveler_id"])
+    print("\tWork trips to impute:", work_trips.shape[0])
     df_people = df_people.merge(work_trips[["traveler_id","beeline"]], 
                     left_on="hdm_source_id", right_on="traveler_id")
+    print("\tCensus people with beeline:",df_people.shape[0])
     return df_people
 
 
@@ -40,17 +51,15 @@ def extract_travelling_workers(df_trips, df_matched, prague_area):
     #print(df_matched.head())
     employed = df_matched.loc[df_matched.employment == "employed"]
     print("Employed in census:", len(employed))
-    print(employed.info())
 
     no_trip = employed[~employed.hdm_source_id.isin(hts_workers)]
     print("Employed with no HTS trip:", len(no_trip))
 
     employed_trip = employed[employed.hdm_source_id.isin(hts_workers)]
-    print(len(employed_trip))
+    print("Employed (traveling) people in zones:",employed_trip.shape[0])
     return employed_trip
 
 def extract_travel_demands(employed_trip):
-    print(employed_trip.columns)
     O_k = {}
     employed_zones = employed_trip.groupby("zone_id") #bydliste
     #print("Workers in zones (#)",len(employed_trip))
@@ -92,10 +101,7 @@ def execute(context):
 
     #Assigning primary location (work): Step 1
     #extract employed people who travel to work
-    print(df_matched.describe())
     employed_trip = extract_travelling_workers(df_trips, df_matched, context.config("prague_area_code"))
-    return
-    print("employed trip:",employed_trip.shape[0])
     employed_trip = extract_commute_distances(employed_trip, df_trips)
     #extract travel demands for each zone
     O_k = extract_travel_demands(employed_trip)
@@ -122,6 +128,6 @@ def execute(context):
     print("Trips leading outside Prague area:",trips_outside.trip_count.sum())
     #f_kk = f_kk[f_kk.destination != 999]
     #print(f_kk[f_kk.destination == 999].shape)
-    print("Abstract trips in Prague:", f_kk.trip_count.sum())
+    print("All abstract trips in Prague:", f_kk.trip_count.sum())
 
     return f_kk, employed_trip

@@ -49,7 +49,7 @@ def clean_traveler_data(context, df):
 
     #remap values
     df.loc[:, 'sex'] = df['sex'].replace(['muž', 'žena'], ['M', 'F'])
-    df.loc[:, 'trip_today'] = df['trip_today'].replace(['ano', 'ne'], [True, False])
+    df.loc[:, 'trip_today'] = df['trip_today'].replace(['ano', 'ne', np.nan], [True, False, False])
     df.loc[:, 'car_avail'] = df['car_avail'].replace(['ano', 'ne'], [True, False])
     df.loc[:, 'bike_avail'] = df['bike_avail'].replace(['ano', 'ne'], [True, False])
     df.loc[:, 'pt_avail'] = df['pt_avail'].replace(['ano', 'ne'], [True, False])
@@ -166,7 +166,6 @@ def calculate_time_in_seconds(df):
     df['departure_time'] = df['departure_h'] * 3600 + df['departure_m'] * 60
     df['arrival_time'] = df['arrival_h'] * 3600 + df['arrival_m'] * 60
     df = df.drop(['departure_h', 'departure_m', 'arrival_h', 'arrival_m'], axis = 1)
-    print(df)
     return df
 
 """
