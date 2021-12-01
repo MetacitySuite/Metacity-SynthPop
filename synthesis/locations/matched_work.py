@@ -38,75 +38,86 @@ def configure(context):
 
 """
 
-def home_work_distance(home, work):
-    dist_m = np.sqrt(pow((home.x - work.x),2) + pow((home.y- work.y),2))
-    dist_km = dist_m/1000.0
-    return dist_km
+#def home_work_distance(home, work):
+#    dist_m = np.sqrt(pow((home.x - work.x),2) + pow((home.y- work.y),2))
+#    dist_km = dist_m/1000.0
+#    return dist_km
     
 
-def extract_commute_distances(df_people, df_trips):
-    work_trips = df_trips[df_trips.destination_purpose == "work"]
-
-    #fill in beeline - use origin, destination code (27perc missing)
-    beeline_median = work_trips.groupby(['origin_code', 'destination_code'])['beeline'].transform('median')
-    work_trips.beeline = work_trips['beeline'].fillna(value=beeline_median)
-    #fill rest with median
-    work_trips.beeline = work_trips['beeline'].fillna(value=work_trips['beeline'].median())
-    
-    print(len(df_people.hdm_source_id.isna()))
-    work_trips = work_trips.loc[work_trips.traveler_id.isin(df_people.hdm_source_id.unique())]
-    df_people = df_people.merge(work_trips[["traveler_id","beeline"]], 
-    left_on="hdm_source_id", right_on="traveler_id")
-    return df_people
 
 
 def assign_facility(args):
     #leave unassigned people at home
-    k, df_u, C_k, epsg = args
+    k, df_u, V, epsg = args
 
     df_u["workplace_point"] = np.nan
-    V = C_k.copy()
-    del C_k
     V["assigned"] = False #picked
     V["J"] = np.inf
+    
+
     for i, u in df_u.iterrows():
         home = u.residence_point
         distance = u.beeline
         V.J = np.inf
-        for j, v in V.loc[V.assigned == False].iterrows():
-            work = v.workplace_point
-            v.J = abs(home_work_distance(home, work) - distance)
+        V[V.assigned == False].J = V[V.assigned == False].apply(lambda v: abs(np.sqrt(pow((home.x - v.work_x),2) + pow((home.y- v.work_y),2))/1000 - distance), axis=1)
+            
         #pick minimum 
-        assigned = V[V.J == V.J.min()]
-        u.workplace_point = assigned.workplace_point
+        u.workplace_point = V[V.J == V.J.min()].workplace_point
         V[V.J == V.J.min()].assigned = True
-        
-    return df_u
 
+    #return df_u
+
+def assign_ordering(args):
+    #leave unassigned people at home
+    k, df_u, V, epsg = args
+    indices = []
+    f_available = np.ones((len(V),), dtype = bool)
+    costs = np.ones((len(V),)) * np.inf
+
+    commute_coordinates = np.vstack([
+        V.work_x.values,
+        V.work_y.values
+    ]).T
+
+    for home_coordinate, commute_distance in zip(df_u["residence_point"], df_u["beeline"]):
+        distances = np.sqrt(np.sum((commute_coordinates[f_available] - home_coordinate)**2, axis = 1))
+        costs[f_available] = np.abs(distances - commute_distance)
+
+        selected_index = np.argmin(costs)
+        indices.append(selected_index)
+        f_available[selected_index] = False
+        costs[selected_index] = np.inf
+
+    #assert len(set(indices)) == len(V)
+    print(indices)
+
+    return indices
 
 
 def execute(context):
-    df_matched = context.stage("synthesis.population.matched")
+    #df_matched = context.stage("synthesis.population.matched")
     df_households, df_travelers, df_trips = context.stage("preprocess.clean_travel_survey")
     df_home = context.stage("preprocess.home")
     df_census_home = context.stage("synthesis.locations.census_home")
     epsg = context.config("epsg")
 
     #Assigning primary location (work): Step 1
-    _, df_employed_ids = context.stage("preprocess.extract_commute_trips")
+    _, df_employed = context.stage("preprocess.extract_commute_trips")
+
     #Assigning primary location (work): Step 2
     C_kk = context.stage("preprocess.extract_facility_candidates")
-    #print(C_kk.head())
+    C_kk["work_x"] = C_kk.workplace_point.apply(lambda point: point.x)
+    C_kk["work_y"] = C_kk.workplace_point.apply(lambda point: point.y)
+    print("Work trips available:",C_kk.shape[0])
 
 
     #Assigning primary location (work): Step 3
-    df_u = df_matched.loc[df_matched.person_id.isin(df_employed_ids)]
+    df_u = df_employed
     print("Employed census (workers #):", df_u.shape[0])
-    print(df_u.info())
+    #print(df_u.info())
      # extract and assign trip distances from HTS to census
-    print("Extract beeline distances:")
-    df_u = extract_commute_distances(df_u, df_trips)
-    print(df_u.info())
+    
+    #print(df_u.info())
     print("Employed census (workers #):", df_u.shape[0])
 
 
@@ -116,25 +127,41 @@ def execute(context):
     df_u = df_u[['person_id', 'sex', 'age', 'employment', 'residence_id', 'zone_id','district_name', 'hdm_source_id','beeline']]
     df_u = df_u.merge(df_home[["residence_id","geometry"]], left_on="residence_id", right_on="residence_id", how="left")
     df_u.rename(columns = {"geometry":"residence_point"}, inplace=True)
-    print(df_u.info())
+    #print(df_u.info())
     print("Employed census (workers #):", df_u.shape[0])
 
+ 
+
     print("Assign primary locations:")
-    df_home_zones = df_u.loc[df_u.person_id.isin(df_employed_ids)].groupby("zone_id")
+    df_home_zones = df_u.groupby("zone_id")
 
     #for each home zone k assign trips from C_kk among locals
     args = []
-    for k, df in df_home_zones:
+
+    results = []
+    for k, df in tqdm(df_home_zones):
         C_k =  C_kk.loc[C_kk.home_zone_id == k]
-        args.append([k,df,C_k, epsg])
+        #args.append([k,df,C_k, epsg])
+        print("People in zone:",df.shape[0], k)
+        print("Travels in zone:", C_k.shape[0], C_k.home_zone_id.unique()[0])
+        if(df.shape[0] > C_k.shape[0]):
+            print("Less travels in zone than people.")
+            #return
+
+        indices = assign_ordering([k,df,C_k,epsg])
+        print(len(indices))
+        ordered_candidates = C_k.iloc[indices]
+        ordered_candidates.loc[:,"person_id"] = df.person_id
+        results.append(ordered_candidates)
+        #return
 
 
-    with Pool(os.cpu_count()) as pool:
-        results = pool.map(assign_facility, args)
-
-    pool.close()
-    pool.join()
-    df_census_assigned_workplace = pd.concat(results)
+    #with Pool(os.cpu_count()) as pool:
+    #    results = pool.map(assign_facility, args)
+    #pool.close()
+    #pool.join()
+    C_kk_assigned = pd.concat(results)
+    df_census_assigned_workplace = df_u.merge(C_kk_assigned[["person_id","workplace_point"]], left_on = "person_id", right_on="person_id", how="left")
         
     print(df_census_assigned_workplace.info())
     return df_census_assigned_workplace

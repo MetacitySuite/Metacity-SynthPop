@@ -9,9 +9,29 @@ def configure(context):
     context.stage("synthesis.population.matched")
     context.stage("preprocess.extract_amenities")
     context.stage("preprocess.clean_commute_prob")
+
+
+
+def extract_commute_distances(df_people, df_trips):
+    work_trips = df_trips[df_trips.destination_purpose == "work"]
+    #remove trips that end outside prague
+    work_trips = work_trips[work_trips.destination_code != 999]
+
+    #fill in beeline - use origin, destination code (27perc missing)
+    beeline_median = work_trips.groupby(['origin_code', 'destination_code'])['beeline'].transform('median')
+    work_trips.beeline = work_trips['beeline'].fillna(value=beeline_median)
+    #fill rest with median
+    work_trips.beeline = work_trips['beeline'].fillna(value=work_trips['beeline'].median())
     
+    print(len(df_people.hdm_source_id.isna()))
+    work_trips = work_trips.loc[work_trips.traveler_id.isin(df_people.hdm_source_id.unique())]
+    df_people = df_people.merge(work_trips[["traveler_id","beeline"]], 
+                    left_on="hdm_source_id", right_on="traveler_id")
+    return df_people
+
+
 def extract_travelling_workers(df_trips, df_matched, prague_area):
-     #traveler ids with work trips
+     #traveler ids with work trips in Prague
     hts_workers = df_trips.iloc[np.where(df_trips.destination_purpose == "work") 
                             and np.where(df_trips.destination_code == prague_area) 
                             and np.where(df_trips.origin_code == prague_area) ].traveler_id.unique()
@@ -22,13 +42,14 @@ def extract_travelling_workers(df_trips, df_matched, prague_area):
     #print("Employed in census:", len(employed))
     #no_trip = employed[~employed.hdm_source_id.isin(hts_workers)]
     #print("Employed with no HTS trip:", len(no_trip))
-    employed_trip = employed[employed.hdm_source_id.isin(hts_workers)]
+    employed_trip = employed.iloc[np.where(employed.hdm_source_id.isin(hts_workers))]
     return employed_trip
 
 def extract_travel_demands(employed_trip):
+    print(employed_trip.columns)
     O_k = {}
     employed_zones = employed_trip.groupby("zone_id") #bydliste
-    #print("Workers in zones (#)",len(employed_zones))
+    #print("Workers in zones (#)",len(employed_trip))
     for i, zone in employed_zones:
         O_k[i] = len(zone)
     return O_k
@@ -66,9 +87,11 @@ def execute(context):
     #extract employed people who travel to work
     employed_trip = extract_travelling_workers(df_trips, df_matched, context.config("prague_area_code"))
     
-
+    print(employed_trip.describe())
+    employed_trip = extract_commute_distances(employed_trip, df_trips)
     #extract travel demands for each zone
     O_k = extract_travel_demands(employed_trip)
+    print("Travel demand:",sum(list(O_k.values())))
     
     #extract outgoing trip counts for each zone
     f_kk = pd.DataFrame(columns=["origin", "destination", "trip_count"])
@@ -84,12 +107,13 @@ def execute(context):
     #f_k = f_kk.groupby("origin")
     #for i,f in f_k:
     #    print(i, O_k[i], f.trip_count.sum())
-
-
+    
     #remove trips that end outside Prague
     # TODO remove in the future
-    trips_outside = f_kk[f_kk.destination == 999].index
-    f_kk.drop(trips_outside, axis=0, inplace=True)
+    trips_outside = f_kk[f_kk.destination == 999]
+    print("Trips leading outside Prague area:",trips_outside.trip_count.sum())
+    #f_kk = f_kk[f_kk.destination != 999]
     #print(f_kk[f_kk.destination == 999].shape)
+    print("Abstract trips in Prague:", f_kk.trip_count.sum())
 
-    return f_kk, employed_trip.person_id
+    return f_kk, employed_trip

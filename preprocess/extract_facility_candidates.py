@@ -1,6 +1,8 @@
+from numpy.core.numeric import empty_like
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
+from shapely.geometry import Point
 
 """
 This stage provides a list of work places that serve as potential locations for
@@ -32,6 +34,14 @@ def extract_facility_candidates(f_kk, df_workplaces, sample_seed, zones):
             dest = df_dest.destination
             n_trips = df_dest.trip_count
             trips_cum +=n_trips
+            
+            #if(dest == 999):
+            #    #Unknown worklace, create "trip" but eventually leave agent at home
+            #    no_workplace += n_trips
+            #    centroid = zones[zones.zone_id == dest].zone_centroid #TODO
+            #    workplace_points = np.append(workplace_points,[centroid]*n_trips)
+            #    commute_zones = np.append(commute_zones,[dest]*n_trips)
+
             if(n_trips > 0):
                 if(df_workplaces[df_workplaces.zone_id == dest].shape[0] > 0):
                     samples = df_workplaces[df_workplaces.zone_id == dest].sample(n=n_trips, replace=True, 
@@ -51,6 +61,7 @@ def extract_facility_candidates(f_kk, df_workplaces, sample_seed, zones):
     C_kk.workplace_point = workplace_points
     C_kk.commute_zone_id = commute_zones
     C_kk.home_zone_id = home_zones
+    print("Cumulative number of trips:", f_kk.trip_count.sum())
     return C_kk
 
 
@@ -60,6 +71,8 @@ def execute(context):
     sample_seed = context.config("seed")
 
     f_kk, df_employed_ids = context.stage("preprocess.extract_commute_trips")
+    print("Abstract trips:", f_kk.trip_count.sum())
+    print(len(df_employed_ids))
 
 
     #Assigning primary location (work): Step 2
