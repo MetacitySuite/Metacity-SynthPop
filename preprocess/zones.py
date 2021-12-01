@@ -26,5 +26,4 @@ def execute(context):
 
     print(df_zones_district.head(2))
     
-    
     return df_zones_district

@@ -89,7 +89,7 @@ def assign_ordering(args):
         costs[selected_index] = np.inf
 
     #assert len(set(indices)) == len(V)
-    print(indices)
+    #print(indices)
 
     return indices
 
