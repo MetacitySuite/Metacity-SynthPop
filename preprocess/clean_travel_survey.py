@@ -162,6 +162,13 @@ def filter_trips_by_area(context, df):
 
     return df
 
+def calculate_time_in_seconds(df):
+    df['departure_time'] = df['departure_h'] * 3600 + df['departure_m'] * 60
+    df['arrival_time'] = df['arrival_h'] * 3600 + df['arrival_m'] * 60
+    df = df.drop(['departure_h', 'departure_m', 'arrival_h', 'arrival_m'], axis = 1)
+    print(df)
+    return df
+
 """
 Cleans table T (Trips). 
 Removes travelers without ID, departure and/or arrival time, origin and/or destination, travelling mode.
@@ -197,6 +204,11 @@ def clean_trip_data(context, df):
     
     #clean and connect activity chains, purge nonsense
     df = clean_activity_chain(df)
+
+    #convert departure and arrival time columns to seconds
+    df = calculate_time_in_seconds(df)
+    df = df[['traveler_id', 'trip_order', 'origin_purpose', 'destination_purpose', 'departure_time', 'arrival_time',
+                'traveling_mode', 'last_trip', 'beeline', 'origin_code', 'destination_code']]
     return df
 
 """
@@ -295,20 +307,6 @@ def execute(context):
     
     #drop columns not useful anymore
     #df_trips = df_trips.drop(['origin_code', 'destination_code'], axis=1)
-
-    #TODO
-    #print(len(df_hh))
-    #_, ts_values_dict = context.stage("preprocess.coded_values")
-    #df_commute_work, df_commute_edu = context.stage("preprocess.clean_commute_prob")
-
-    #print("Travelers: " + str(len(df_travelers)))
-    #print("Non-traveling: " + str(len(df_travelers.loc[df_travelers['trip_today'] == False])))
-    #print("Travelers education: " + str(len(df_travelers.loc[ df_travelers['employment'].isin(ts_values_dict['edu_list']) ])))
-    #print("Trvalers work: " + str(len(df_travelers.loc[ df_travelers['employment'].isin(ts_values_dict["employed_list"]) ])))
-    #print("Travelers education (census): ")
-    #print(df_commute_edu['person_number'].sum())
-    #print("Travelers work (census): ")
-    #print(df_commute_work['person_number'].sum())
     
     #re-connect all data
     df_hh, df_travelers, df_trips = connect_tables(df_hh, df_travelers, df_trips)

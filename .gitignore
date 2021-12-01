@@ -169,6 +169,7 @@ misc/PerformanceTesting/templates
 misc/PerformanceTesting/outputs
 misc/RandomData
 data/*
+tests/
 
 # Config files
 config.yml
