@@ -36,13 +36,17 @@ def extract_travelling_workers(df_trips, df_matched, prague_area):
                             and np.where(df_trips.destination_code == prague_area) 
                             and np.where(df_trips.origin_code == prague_area) ].traveler_id.unique()
 
-    #print("Workers in HTS:",len(hts_workers))
+    print("Workers in HTS:",len(hts_workers))
     #print(df_matched.head())
     employed = df_matched.loc[df_matched.employment == "employed"]
-    #print("Employed in census:", len(employed))
-    #no_trip = employed[~employed.hdm_source_id.isin(hts_workers)]
-    #print("Employed with no HTS trip:", len(no_trip))
-    employed_trip = employed.iloc[np.where(employed.hdm_source_id.isin(hts_workers))]
+    print("Employed in census:", len(employed))
+    print(employed.info())
+
+    no_trip = employed[~employed.hdm_source_id.isin(hts_workers)]
+    print("Employed with no HTS trip:", len(no_trip))
+
+    employed_trip = employed[employed.hdm_source_id.isin(hts_workers)]
+    print(len(employed_trip))
     return employed_trip
 
 def extract_travel_demands(employed_trip):
@@ -76,8 +80,11 @@ def execute(context):
     df_workplaces, df_schools, df_shops, df_leisure = context.stage("preprocess.extract_amenities")
     pi_kk, _ = context.stage("preprocess.clean_commute_prob")
     pi_k = pi_kk.groupby('home_zone_id')
+    print("matched:",df_matched.shape[0])
+    print("df_trips", df_trips.shape[0])
 
 
+    print(df_workplaces.shape[0])
     for col in ["district_id", "zone_id"]:
         df_workplaces[col] = df_workplaces[col].fillna(-1).astype(int)
         print("Missing",col, len(df_workplaces.iloc[np.where(df_workplaces[col] == -1)]))
@@ -85,9 +92,10 @@ def execute(context):
 
     #Assigning primary location (work): Step 1
     #extract employed people who travel to work
+    print(df_matched.describe())
     employed_trip = extract_travelling_workers(df_trips, df_matched, context.config("prague_area_code"))
-    
-    print(employed_trip.describe())
+    return
+    print("employed trip:",employed_trip.shape[0])
     employed_trip = extract_commute_distances(employed_trip, df_trips)
     #extract travel demands for each zone
     O_k = extract_travel_demands(employed_trip)

@@ -4,11 +4,11 @@ import json
 from tqdm import tqdm 
 
 def load_poi_tags(file):
-    poi_tags_file = open(file)
+    poi_tags_file = open(file, encoding='utf-8')
     return json.load(poi_tags_file)
      
 def process_poi_shapefile(file, col, epsg):
-    gdf_poi = gpd.read_file(file)
+    gdf_poi = gpd.read_file(file, encoding='utf-8')
     gdf_poi = gdf_poi[col]
     gdf_poi = gdf_poi.to_crs(epsg)
     gdf_poi.columns = ["id", "type", "description", "geometry"]
@@ -31,6 +31,7 @@ def configure(context):
 def execute(context):
     epsg = context.config("epsg")
     df_zones = context.stage("preprocess.zones")
+    #print("Zones:", df_zones.shape[0])
 
     shape_file_commercial = context.config("data_path") + context.config("shape_file_commercial")
     shape_file_amenity = context.config("data_path") + context.config("shape_file_amenity")
@@ -48,7 +49,7 @@ def execute(context):
     #load jisons
     for pt in poi_types:
         filename = "poi_tags_" + pt
-        file = open(context.config("project_directory") +"tags/"+ context.config(filename))
+        file = open(context.config("project_directory") +"tags/"+ context.config(filename), encoding='utf-8')
         amenity[pt] = json.load(file)
 
     #extract amenitites coordinates and spatial join with zones
@@ -58,8 +59,12 @@ def execute(context):
     df_shop_poi = df_commercial_poi[df_commercial_poi["type"].isin(amenity['shop'])]
     df_shops = gpd.sjoin(df_shop_poi, df_zones, op = "within", how="left").drop(columns=["index_right"])
 
+    #print(amenity['work'])
     df_work_poi = df_commercial_poi[df_commercial_poi["type"].isin(amenity['work'])]
+    #print(df_work_poi.shape[0])
+
     df_workplaces = gpd.sjoin(df_work_poi, df_zones, op = "within", how="left").drop(columns=["index_right"])
+    
 
     #amenity poi
     df_education_poi = df_amenity_poi[df_amenity_poi["type"].isin(amenity['education'])]
@@ -81,5 +86,6 @@ def execute(context):
     #concatenate poi
     df_workplaces = pd.concat([df_workplaces, df_workplaces_am, df_workplaces_re])
     df_leisure = pd.concat([df_leisure, df_leisure_re])
+
 
     return df_workplaces, df_schools, df_shops, df_leisure

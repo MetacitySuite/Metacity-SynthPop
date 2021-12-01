@@ -259,9 +259,10 @@ def configure(context):
 
 def execute(context):
     #read CSV data
-    df_hh = pd.read_csv(context.config("data_path") + context.config("travel_survey_files") + "H.csv", encoding='cp1250', delimiter=";")
-    df_persons = pd.read_csv(context.config("data_path") + context.config("travel_survey_files") + "P.csv", encoding='cp1250', delimiter=";")
-    df_trips = pd.read_csv(context.config("data_path") + context.config("travel_survey_files") + "T.csv", encoding='cp1250', delimiter=";")
+    encoding = "cp1250"
+    df_hh = pd.read_csv(context.config("data_path") + context.config("travel_survey_files") + "H.csv", encoding=encoding, delimiter=";")
+    df_persons = pd.read_csv(context.config("data_path") + context.config("travel_survey_files") + "P.csv", encoding=encoding, delimiter=";")
+    df_trips = pd.read_csv(context.config("data_path") + context.config("travel_survey_files") + "T.csv", encoding=encoding, delimiter=";")
 
     #filter and rename columns
     df_hh = df_hh[['H_ID', 'NAZ_MOaMC', 'H_persons', 'H_venr_car_private', 'H_venr_car_company', 'H_venr_util', 'H_venr_other','H_venr_bike']]
@@ -311,8 +312,6 @@ def execute(context):
     
     #re-connect all data
     df_hh, df_travelers, df_trips = connect_tables(df_hh, df_travelers, df_trips)
-
-
 
 
     return df_hh, df_travelers, df_trips
