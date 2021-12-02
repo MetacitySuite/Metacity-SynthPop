@@ -9,7 +9,7 @@ def configure(context):
     context.stage("synthesis.population.matched")
     context.stage("preprocess.extract_amenities")
     context.stage("preprocess.clean_commute_prob")
-
+    context.stage("preprocess.zones")
 
 
 def extract_work_distances(df_people, df_trips):
@@ -134,6 +134,8 @@ def execute(context):
     df_households, df_travelers, df_trips = context.stage("preprocess.clean_travel_survey")
     df_workplaces, df_schools, df_shops, df_leisure = context.stage("preprocess.extract_amenities")
     pi_kk, pi_kk_edu = context.stage("preprocess.clean_commute_prob")
+
+    df_zones = context.stage("preprocess.zones")
     
     print("matched:",df_matched.shape[0])
     print("df_trips", df_trips.shape[0])
@@ -162,8 +164,7 @@ def execute(context):
     #extract travel demands for each zone
     O_k_work = extract_travel_demands(employed_trip)
     O_k_edu = extract_travel_demands(students_trip)
-    print("Travel demand WORK:",sum(list(O_k_work.values())))
-    print("Travel demand EDUCATION:",sum(list(O_k_edu.values())))
+    
     
     #extract outgoing trip counts for each zone
     f_kk_work = pd.DataFrame(columns=["origin", "destination", "trip_count"])
@@ -184,10 +185,16 @@ def execute(context):
         
         f_kk_edu = f_kk_edu.append(extract_trip_counts(k, O_k_edu[k], pi_k, other_ids))
 
-    #validate trip counts
-    #f_k = f_kk.groupby("origin")
-    #for i,f in f_k:
-    #    print(i, O_k[i], f.trip_count.sum())
+
+    print("Zones in edu Ok",len(list(O_k_edu.keys())))
+    print("Zones in edu probs:",len(pi_kk_edu.home_zone_id.unique()))
+    print("Zones in f_kk edu:",len(f_kk_edu.origin.unique()))
+
+    df_students_nok = students_trip[~students_trip.zone_id.isin(pi_kk_edu.home_zone_id.unique())]
+    students_trip = students_trip[students_trip.zone_id.isin(pi_kk_edu.home_zone_id.unique())]
+    print("NOK students from zones we dont have probabilities for:")
+    print(df_students_nok.describe())
+    print(df_zones[df_zones.zone_id.isin(df_students_nok.zone_id.unique())][["zone_id", "district_name"]])
     
     #remove trips that end outside Prague
     # TODO remove in the future
@@ -197,5 +204,7 @@ def execute(context):
     #print(f_kk[f_kk.destination == 999].shape)
     print("All abstract WORK trips in Prague:", f_kk_work.trip_count.sum())
     print("All abstract SCHOOL trips in Prague:", f_kk_edu.trip_count.sum())
+    print("Travel demand WORK:",sum(list(O_k_work.values())))
+    print("Travel demand EDUCATION:",sum(list(O_k_edu.values())))
 
-    return f_kk_work, employed_trip
+    return f_kk_work, employed_trip, f_kk_edu, students_trip

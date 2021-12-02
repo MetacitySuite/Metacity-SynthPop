@@ -89,18 +89,18 @@ def execute(context):
     epsg = context.config("epsg")
 
     #Assigning primary location (work): Step 1
-    _, df_employed, _, _ = context.stage("preprocess.extract_commute_trips")
+    _, _ , _ ,df_students = context.stage("preprocess.extract_commute_trips")
 
     #Assigning primary location (work): Step 2
-    C_kk, _ = context.stage("preprocess.extract_facility_candidates")
+    _, C_kk = context.stage("preprocess.extract_facility_candidates")
     C_kk["commute_x"] = C_kk.commute_point.apply(lambda point: point.x)
     C_kk["commute_y"] = C_kk.commute_point.apply(lambda point: point.y)
-    print("Work trips available:",C_kk.shape[0])
+    print("School trips available:",C_kk.shape[0])
 
 
     #Assigning primary location (work): Step 3
-    df_u = df_employed
-    print("Employed census (workers #):", df_u.shape[0])
+    df_u = df_students
+    print("Census (students #):", df_u.shape[0])
 
     #extract residence point from df_home
     print("Extract residence points:")
@@ -109,7 +109,7 @@ def execute(context):
     df_u = df_u.merge(df_home[["residence_id","geometry"]], left_on="residence_id", right_on="residence_id", how="left")
     df_u.rename(columns = {"geometry":"residence_point"}, inplace=True)
     #print(df_u.info())
-    print("Employed census (workers #):", df_u.shape[0])
+    print("Census (students #):", df_u.shape[0])
 
     print("Assign primary locations:")
     df_home_zones = df_u.groupby("zone_id")
@@ -121,10 +121,11 @@ def execute(context):
         
         if(df.shape[0] > C_k.shape[0]):
             print("People in zone:",df.shape[0], k)
-            print("Travels in zone:", C_k.shape[0], C_k.home_zone_id.unique()[0])
+            print("Travels in zone:", C_k.shape[0])
             print("Less travels in zone than people.")
-            #return
+            return
 
+        #f(C_k.shape[0])
         indices = assign_ordering([k,df,C_k,epsg])
         ordered_candidates = C_k.iloc[indices]
         if(df.shape[0] > ordered_candidates.shape[0]):
@@ -142,14 +143,15 @@ def execute(context):
     C_kk_assigned = pd.concat(results)
     print(C_kk_assigned.info())
     df_census_assigned = df_u.merge(C_kk_assigned[["person_id","commute_point"]], left_on = "person_id", right_on="person_id", how="left")
-    df_census_assigned.loc[:,"travels_to_work"] = df_census_assigned.commute_point.apply(lambda point: not point.equals(Point(-1.0,-1.0)))
-    print("Employed census with workplace points:")
+    df_census_assigned.loc[:,"travels_to_school"] = df_census_assigned.commute_point.apply(lambda point: not point.equals(Point(-1.0,-1.0)))
+    print("Census students with schoolplace points:")
     #print(df_census_assigned_workplace.info())
     print(df_census_assigned.head())
 
 
     #result validation and export to shp
     geometries = df_census_assigned.commute_point.apply(lambda x: x.wkt).values
-    print("Unique workplaces:", len(set(geometries)))
-    export_shp(df_census_assigned, context.config("output_path")+"workplace_travels.shp")
+    print("Unique education facilitites:", len(set(geometries)))
+    export_shp(df_census_assigned, context.config("output_path")+"education_travels.shp")
+
     return df_census_assigned
