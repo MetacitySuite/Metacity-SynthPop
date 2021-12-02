@@ -145,8 +145,8 @@ class PopulationWriter(XmlWriter):
         self._write_indent()
         self._write('<leg ')
         self._write('mode="%s" ' % mode)
-        self._write('dep_time="%s" ' % self.time(departure_time))
-        self._write('trav_time="%s" ' % self.time(travel_time))
+        #self._write('dep_time="%s" ' % self.time(departure_time))
+        #self._write('trav_time="%s" ' % self.time(travel_time))
         self._write('/>\n')
 
 class HouseholdsWriter(XmlWriter):

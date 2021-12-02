@@ -4,6 +4,11 @@ import numpy as np
 import matsim.writers as writers
 from matsim.writers import backlog_iterator
 
+"""
+MATSim XML population exporter
+https://github.com/eqasim-org/sao_paulo/blob/master/matsim/scenario/population.py
+"""
+
 PERSON_COLS = ['person_id', 'trip_today', 'localised']
 ACTIVITY_COLS = ['person_id', 'activity_order', 'purpose', 'start_time', 'end_time', 'geometry', 'location_id']
 TRIP_COLS = ['person_id', 'trip_order', 'traveling_mode']
@@ -19,10 +24,12 @@ def add_person(writer, person, activities, trips):
         location_id = activity[ACTIVITY_COLS.index("location_id")]
         geometry = activity[ACTIVITY_COLS.index("geometry")]
 
-        location = writer.location(
-            -geometry.y, -geometry.x,
-            None if location_id == -1 else location_id
-        )
+        #location = writer.location(
+        #    -geometry.y, -geometry.x,
+        #    None if location_id == -1 else location_id
+        #)
+
+        location = writer.location(-geometry.y, -geometry.x)
 
         writer.add_activity(
             type = activity[ACTIVITY_COLS.index("purpose")],
@@ -40,8 +47,6 @@ def add_person(writer, person, activities, trips):
     writer.end_person()
 
 def configure(context):
-    #type = {'home', 'work', 'education', 'shop', 'leisure', 'other' }
-    #traveling_mode = {'car', 'bike', 'pt', 'walk'}
     context.stage("tests.matsim_persons_export_example")
     context.config("output_path")
 
@@ -72,7 +77,6 @@ def execute(context):
                     # Track all activities for person
                     while activity_iterator.has_next():
                         activity = activity_iterator.next()
-                        print(person_id)
                         if not activity[ACTIVITY_COLS.index("person_id")] == person_id:
                             activity_iterator.previous()
                             break
