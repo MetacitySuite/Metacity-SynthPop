@@ -1,10 +1,11 @@
+from typing import ValuesView
 from numpy.random.mtrand import seed
 import pandas as pd
 import numpy as np
 import geopandas as gpd
 from tqdm import tqdm
 from pyproj import Geod
-from shapely.geometry import LineString
+from shapely.geometry import LineString, Point
 from multiprocessing import Pool
 import os
 #import seaborn as sns
@@ -24,6 +25,7 @@ def configure(context):
     context.stage("preprocess.home")
     context.stage("synthesis.locations.census_home")
     context.config("data_path")
+    context.config("output_path")
     context.config("epsg")
     context.config("prague_area_code")
     context.stage("preprocess.clean_travel_survey")
@@ -37,35 +39,6 @@ def configure(context):
 """
 
 """
-
-#def home_work_distance(home, work):
-#    dist_m = np.sqrt(pow((home.x - work.x),2) + pow((home.y- work.y),2))
-#    dist_km = dist_m/1000.0
-#    return dist_km
-    
-
-
-
-def assign_facility(args):
-    #leave unassigned people at home
-    k, df_u, V, epsg = args
-
-    df_u["workplace_point"] = np.nan
-    V["assigned"] = False #picked
-    V["J"] = np.inf
-    
-
-    for i, u in df_u.iterrows():
-        home = u.residence_point
-        distance = u.beeline
-        V.J = np.inf
-        V[V.assigned == False].J = V[V.assigned == False].apply(lambda v: abs(np.sqrt(pow((home.x - v.work_x),2) + pow((home.y- v.work_y),2))/1000 - distance), axis=1)
-            
-        #pick minimum 
-        u.workplace_point = V[V.J == V.J.min()].workplace_point
-        V[V.J == V.J.min()].assigned = True
-
-    #return df_u
 
 def assign_ordering(args):
     #leave unassigned people at home
@@ -90,8 +63,22 @@ def assign_ordering(args):
 
     #assert len(set(indices)) == len(V)
     #print(indices)
-
     return indices
+
+def export_shp(df, output_shp):
+    travels = gpd.GeoDataFrame()
+
+    travels.loc[:,"geometry"] = df.apply(lambda row: LineString([row.residence_point, row.workplace_point]), axis=1)
+    travels.loc[:,"person_id"] = df.person_id.values
+    travels.loc[:,"beeline"] = df.beeline.values
+    #travels.loc[:,"district_name"] = df.district_name.values
+    travels.loc[:,"travelerid"] = df.hdm_source_id.values
+    travels.loc[:,"travels"] = df.workplace_point.apply(lambda point: not point.equals(Point(-1.0,-1.0)))
+
+    travels[travels.travels].to_file(output_shp)
+    print("Saved to:", output_shp)
+    return
+
 
 
 def execute(context):
@@ -114,12 +101,6 @@ def execute(context):
     #Assigning primary location (work): Step 3
     df_u = df_employed
     print("Employed census (workers #):", df_u.shape[0])
-    #print(df_u.info())
-     # extract and assign trip distances from HTS to census
-    
-    #print(df_u.info())
-    print("Employed census (workers #):", df_u.shape[0])
-
 
     #extract residence point from df_home
     print("Extract residence points:")
@@ -130,38 +111,45 @@ def execute(context):
     #print(df_u.info())
     print("Employed census (workers #):", df_u.shape[0])
 
- 
-
     print("Assign primary locations:")
     df_home_zones = df_u.groupby("zone_id")
 
     #for each home zone k assign trips from C_kk among locals
-    args = []
-
     results = []
     for k, df in tqdm(df_home_zones):
         C_k =  C_kk.loc[C_kk.home_zone_id == k]
-        #args.append([k,df,C_k, epsg])
-        print("People in zone:",df.shape[0], k)
-        print("Travels in zone:", C_k.shape[0], C_k.home_zone_id.unique()[0])
+        
         if(df.shape[0] > C_k.shape[0]):
+            print("People in zone:",df.shape[0], k)
+            print("Travels in zone:", C_k.shape[0], C_k.home_zone_id.unique()[0])
             print("Less travels in zone than people.")
             #return
 
         indices = assign_ordering([k,df,C_k,epsg])
-        print(len(indices))
         ordered_candidates = C_k.iloc[indices]
-        ordered_candidates.loc[:,"person_id"] = df.person_id
+        if(df.shape[0] > ordered_candidates.shape[0]):
+            print("People in zone:",df.shape[0], k)
+            print("Assigned in zone:", ordered_candidates.shape[0], ordered_candidates.home_zone_id.unique()[0])
+            print("Less travels in zone than people.")
+
+
+        ordered_candidates.loc[:,"person_id"] = df["person_id"].values
         results.append(ordered_candidates)
-        #return
+      
+    print("Result of matching for one zone", len(results))
+    print(results[0].head())
 
-
-    #with Pool(os.cpu_count()) as pool:
-    #    results = pool.map(assign_facility, args)
-    #pool.close()
-    #pool.join()
     C_kk_assigned = pd.concat(results)
+    print(C_kk_assigned.info())
     df_census_assigned_workplace = df_u.merge(C_kk_assigned[["person_id","workplace_point"]], left_on = "person_id", right_on="person_id", how="left")
-        
-    print(df_census_assigned_workplace.info())
+    df_census_assigned_workplace.loc[:,"travels_to_work"] = df_census_assigned_workplace.workplace_point.apply(lambda point: not point.equals(Point(-1.0,-1.0)))
+    print("Employed census with workplace points:")
+    #print(df_census_assigned_workplace.info())
+    print(df_census_assigned_workplace.head())
+
+
+    #result validation and export to shp
+    geometries = df_census_assigned_workplace.workplace_point.apply(lambda x: x.wkt).values
+    print("Unique workplaces:", len(set(geometries)))
+    export_shp(df_census_assigned_workplace, context.config("output_path")+"workplace_travels.shp")
     return df_census_assigned_workplace
