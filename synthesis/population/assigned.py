@@ -226,12 +226,10 @@ def export_trips(df_persons, df_traveling, df_trips):
                 
         df_activities = df_activities.append(person_activity,ignore_index=True, sort=False)
         df_trips_out = df_trips_out.append(person_trip,ignore_index=True, sort=False)
-        if(count == 3000):
+        if(count == 10000):
             return df_activities, df_persons, df_trips_out
 
-    #person_trips_out
     return df_activities, df_persons, df_trips_out
-
 
 
 
@@ -255,6 +253,8 @@ def execute(context):
 
     df_activities, df_persons, df_ttrips = export_trips(df_persons, df_traveling, df_trips)
 
+    #df_activities, df_persons, df_ttrips = export_trips_parallel(df_persons, df_traveling, df_trips)
+
     print(df_activities.info())
     print(df_activities.head())
     print(df_activities.purpose.value_counts(normalize=True))
@@ -270,7 +270,6 @@ def execute(context):
     #print()
     #count = 0
     #for i, df in df_activities.groupby("person_id"):
-#
     #    if(df.shape[0]>1):
     #        print(i)
     #        print(df[["person_id","purpose", "activity_order","start_time","end_time"]].head())
@@ -279,12 +278,14 @@ def execute(context):
     #        count+=1
     #    if(count == 150):
     #        break
-#
-    #print("ACTIVITIES")
-    #print(df_activities[df_activities.person_id == 1])
-    #print(df_ttrips[df_ttrips.person_id == 1])
-#
-#
 
+    print("ACTIVITIES")
+    print(df_activities[df_activities.person_id == 1])
+    print(df_ttrips[df_ttrips.person_id == 1])
+
+    print(df_ttrips.traveling_mode.unique())
+
+    df_ttrips.traveling_mode = df_ttrips.traveling_mode.replace("car-passenger","car")
+    print(df_ttrips.traveling_mode.unique())
 
     return df_persons, df_activities, df_ttrips
