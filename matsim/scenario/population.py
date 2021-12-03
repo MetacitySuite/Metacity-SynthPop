@@ -9,9 +9,9 @@ MATSim XML population exporter
 https://github.com/eqasim-org/sao_paulo/blob/master/matsim/scenario/population.py
 """
 
-PERSON_COLS = ['person_id', 'trip_today', 'localised']
-ACTIVITY_COLS = ['person_id', 'activity_order', 'purpose', 'start_time', 'end_time', 'geometry', 'location_id']
-TRIP_COLS = ['person_id', 'trip_order', 'traveling_mode']
+PERSON_COLS = ['person_id', 'trip_today']
+ACTIVITY_COLS = ['person_id', 'purpose', 'start_time', 'end_time', 'geometry', 'activity_order', 'location_id']
+TRIP_COLS = ['person_id', 'traveling_mode', 'trip_order']
 
 def add_person(writer, person, activities, trips):
     writer.start_person(person[PERSON_COLS.index("person_id")])
@@ -47,12 +47,12 @@ def add_person(writer, person, activities, trips):
     writer.end_person()
 
 def configure(context):
-    context.stage("tests.matsim_persons_export_example")
+    context.stage("synthesis.population.assigned")
     context.config("output_path")
 
 def execute(context):
     output_path = context.config("output_path") + "population.xml.gz"
-    df_persons, df_activities, df_trips = context.stage("tests.matsim_persons_export_example")
+    df_persons, df_activities, df_trips = context.stage("synthesis.population.assigned")
 
     df_persons = df_persons.sort_values(by=['person_id'])
     df_activities = df_activities.sort_values(by=['person_id', 'activity_order'])
@@ -94,7 +94,9 @@ def execute(context):
                             break
                         else:
                             trips.append(trip)
-
+                    
+                    print(person_id)
+                    print(len(activities), len(trips))
                     assert len(trips) == len(activities) - 1
 
                     add_person(writer, person, activities, trips)
