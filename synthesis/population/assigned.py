@@ -1,5 +1,5 @@
 from typing import ValuesView
-from numpy.random.mtrand import seed
+from numpy.random.mtrand import hypergeometric, seed
 import pandas as pd
 import numpy as np
 import geopandas as gpd
@@ -122,24 +122,106 @@ def prepare_activities(df_persons, df_traveling, df_trips):
     print(df_activities.head())
     print((df_activities[["start_time","end_time","activity_order"]]).describe())
 
+
+def add_activity(person_id, trip,  last_purpose, activity_order, df_traveling, last_start, last_activity=False):
+    activity = {}
+    purposes = ["home", 'work', "education"]
+    activity["person_id"] = person_id
+    if(trip.origin_purpose in (purposes) and not last_activity):
+        activity["purpose"] = last_purpose
+    else:
+        activity["purpose"] = trip.destination_purpose
+        #print("Imputing last purpose", last_purpose)
+
+    
+    if(trip.origin_purpose in (["home"])):
+        activity["geometry"] = df_traveling[df_traveling.person_id == person_id].residence_point
+        activity["location_id"] = df_traveling[df_traveling.person_id == person_id].residence_id
+    else:
+        activity["geometry"] = df_traveling[df_traveling.person_id == person_id].commute_point
+           
+    activity["end_time"] = trip.departure_time + np.random.randint(-30*60, 30*60)
+    activity["start_time"] = last_start
+    activity["activity_order"] = activity_order
+    return activity
+
+
 def export_trips(df_persons, df_traveling, df_trips):
     columns = ["person_id","purpose","start_time","end_time", "geometry","activity_order","location_id"]
+    df_activities = pd.DataFrame(columns=columns)
+    df_trips_out = pd.DataFrame(columns=["person_id", "traveling_mode","trip_order"])
     purposes = ["home", 'work', "education"]
     hts_ids = df_traveling.hdm_source_id.unique()
 
-    for person in df_persons.person_id.values[1:]:
-        print("trip today:",df_persons[df_persons.person_id == person].trip_today.values)
-        print(df_traveling[df_traveling.person_id == person])
-        hts_id = df_traveling[df_traveling.person_id == person].hdm_source_id[0]
-        print(person, hts_id)
-        person_trips = df_trips.loc[df_trips.traveler_id == hts_id].sort_values(["trip_order"])
-        person_activity = pd.DataFrame(columns=columns)
-        print(person_trips)
-        #if not ("work".isin(person_trips.origin_purpose)) and not ("education".isin(person_trips.origin_purpose)):
-        #    df_persons[]
+    
 
-        #person_trips_out
-        return
+    count = 0
+    for persons_index, df in tqdm(df_persons.iterrows()):
+        count += 1
+        person = df.person_id
+        hts_id = df_traveling[df_traveling.person_id == person].hdm_source_id.values[0]
+        person_trips = df_trips.loc[df_trips.traveler_id == hts_id].sort_values(["trip_order"])
+        person_activity = []
+        person_trip = []
+        if not ("work" in (person_trips.origin_purpose.unique())) and not ("education" in (person_trips.origin_purpose.unique())):
+            #print("Person stays at home")
+            df_persons.at[persons_index,"trip_today"] = False
+            activity = {}
+            activity["person_id"] = df.person_id
+            activity["purpose"] = "home"
+            activity["geometry"] = df_traveling[df_traveling.person_id == person].residence_point.values[0]
+            activity["activity_order"] = 0
+            activity["location_id"] = df_traveling[df_traveling.person_id == person].residence_id.values[0]
+            person_activity.append(activity)
+        else:
+            #print("Person has a trip")
+            df_persons.at[persons_index,"trip_today"] = True
+            trip_order = 0
+            activity_order = 0
+            last_purpose = "unknown"
+            first_activity = np.nan
+            last_activity = np.nan
+            last_start = np.nan
+            for ix, trip in person_trips.iterrows(): #maybe sort by time to be sure
+                if(trip.origin_purpose) in (purposes):
+                    last_purpose = trip.origin_purpose
+                    last_start = trip.arrival_time + np.random.randint(-30*60, 30*60)
+                if(trip.destination_purpose in (purposes) and trip.destination_purpose != last_purpose):
+                    
+
+                    activity = add_activity(df.person_id, trip, last_purpose, activity_order, df_traveling, last_start)
+                    if(activity_order == 0):
+                        first_activity = last_purpose
+                    activity_order += 1
+                    person_activity.append(activity)
+
+                    p_trip = {}
+                    p_trip["person_id"] = df.person_id
+                    p_trip["traveling_mode"] = trip.traveling_mode
+                    p_trip["trip_order"] = trip_order
+                    trip_order += 1
+                    person_trip.append(p_trip)
+
+                    if(ix == person_trips.last_valid_index()): #can be used as last trip
+                        activity = add_activity(df.person_id, trip, trip.destination_purpose, activity_order, df_traveling, last_start,  True)
+                        person_activity.append(activity)
+                        last_activity = trip.destination_purpose
+                    
+                        if(last_activity != first_activity):
+                            print("FA",first_activity,"LA" ,last_activity)
+                            print("Person trip is not circular!")
+                            print(person_trips)
+                            print(person_activity)
+                            print(person_trip)
+                            return
+                
+        df_activities = df_activities.append(person_activity,ignore_index=True, sort=False)
+        df_trips_out = df_trips_out.append(person_trip,ignore_index=True, sort=False)
+        if(count == 10000):
+            return df_activities, df_persons, df_trips_out
+
+    #person_trips_out
+    return df_activities, df_persons, df_trips_out
 
 
 
@@ -158,18 +240,24 @@ def execute(context):
     print(df_employed[df_employed.person_id.isin(df_students.person_id.unique())].info())
 
     
-    
-    
-    df_ttrips = pd.DataFrame(columns=["person_id","traveling_mode","trip_order"])
-
-    
+    #df_ttrips = pd.DataFrame(columns=["person_id","traveling_mode","trip_order"])
+    print(df_trips.head())
     df_persons, df_traveling = prepare_people(df_employed, df_students)
 
-    df_activities = export_trips(df_persons, df_traveling, df_trips)
+    df_activities, df_persons, df_ttrips = export_trips(df_persons, df_traveling, df_trips)
+
+    print(df_activities.info())
+    print(df_activities.head())
+    print(df_activities.purpose.value_counts(normalize=True))
+
+    df_persons = df_persons.iloc[np.where(~df_persons.trip_today.isna())]
+
+    print(df_persons.info())
+    print(df_persons.head())
+
+    print(df_ttrips.info())
+    print(df_ttrips.head())
 
 
 
-    
-
-    
     return df_persons, df_activities, df_ttrips
