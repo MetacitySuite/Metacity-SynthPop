@@ -127,11 +127,14 @@ def add_activity(person_id, trip,  last_purpose, activity_order, df_traveling, l
     activity = {}
     purposes = ["home", 'work', "education"]
     activity["person_id"] = person_id
+
     if(trip.origin_purpose in (purposes) and not last_activity):
-        activity["purpose"] = last_purpose
-    else:
+        activity["purpose"] = trip.origin_purpose
+    elif last_activity:
         activity["purpose"] = trip.destination_purpose
         #print("Imputing last purpose", last_purpose)
+    else:
+        activity["purpose"] = last_purpose
 
     
     if(trip.origin_purpose in (["home"])):
@@ -140,8 +143,14 @@ def add_activity(person_id, trip,  last_purpose, activity_order, df_traveling, l
     else:
         activity["geometry"] = df_traveling[df_traveling.person_id == person_id].commute_point
            
-    activity["end_time"] = trip.departure_time + np.random.randint(-30*60, 30*60)
+
+    trip_duration = trip.arrival_time - trip.departure_time
+    activity["end_time"] = trip.departure_time + np.random.randint(max(-trip_duration/2,-30*60), min(30*60, trip_duration/2))
     activity["start_time"] = last_start
+    if last_activity:
+        activity["end_time"] = np.nan
+        activity["start_time"] = trip.arrival_time + np.random.randint(max(-trip_duration/2,-30*60), min(30*60, trip_duration/2))
+
     activity["activity_order"] = activity_order
     return activity
 
@@ -151,9 +160,6 @@ def export_trips(df_persons, df_traveling, df_trips):
     df_activities = pd.DataFrame(columns=columns)
     df_trips_out = pd.DataFrame(columns=["person_id", "traveling_mode","trip_order"])
     purposes = ["home", 'work', "education"]
-    hts_ids = df_traveling.hdm_source_id.unique()
-
-    
 
     count = 0
     for persons_index, df in tqdm(df_persons.iterrows()):
@@ -163,7 +169,7 @@ def export_trips(df_persons, df_traveling, df_trips):
         person_trips = df_trips.loc[df_trips.traveler_id == hts_id].sort_values(["trip_order"])
         person_activity = []
         person_trip = []
-        if not ("work" in (person_trips.origin_purpose.unique())) and not ("education" in (person_trips.origin_purpose.unique())):
+        if (not "work" in person_trips.origin_purpose.unique()) and (not "education" in person_trips.origin_purpose.unique()):
             #print("Person stays at home")
             df_persons.at[persons_index,"trip_today"] = False
             activity = {}
@@ -183,15 +189,18 @@ def export_trips(df_persons, df_traveling, df_trips):
             last_activity = np.nan
             last_start = np.nan
             for ix, trip in person_trips.iterrows(): #maybe sort by time to be sure
-                if(trip.origin_purpose) in (purposes):
-                    last_purpose = trip.origin_purpose
-                    last_start = trip.arrival_time + np.random.randint(-30*60, 30*60)
-                if(trip.destination_purpose in (purposes) and trip.destination_purpose != last_purpose):
+                if(trip.origin_purpose) in (purposes): #last purpose that we leave
+                    last_purpose = trip.origin_purpose #activity type
                     
+                    trip_duration = trip.arrival_time - trip.departure_time
+                    last_start = trip.arrival_time  + np.random.randint(max(-trip_duration/2,-30*60), min(30*60, trip_duration/2))
+
+                if(trip.destination_purpose in (purposes) and trip.destination_purpose != last_purpose): # we leave to new valid activity
 
                     activity = add_activity(df.person_id, trip, last_purpose, activity_order, df_traveling, last_start)
                     if(activity_order == 0):
                         first_activity = last_purpose
+                        activity["start_time"] = np.nan
                     activity_order += 1
                     person_activity.append(activity)
 
@@ -217,7 +226,7 @@ def export_trips(df_persons, df_traveling, df_trips):
                 
         df_activities = df_activities.append(person_activity,ignore_index=True, sort=False)
         df_trips_out = df_trips_out.append(person_trip,ignore_index=True, sort=False)
-        if(count == 10000):
+        if(count == 3000):
             return df_activities, df_persons, df_trips_out
 
     #person_trips_out
@@ -258,6 +267,24 @@ def execute(context):
     print(df_ttrips.info())
     print(df_ttrips.head())
 
+    #print()
+    #count = 0
+    #for i, df in df_activities.groupby("person_id"):
+#
+    #    if(df.shape[0]>1):
+    #        print(i)
+    #        print(df[["person_id","purpose", "activity_order","start_time","end_time"]].head())
+    #        print("trips")
+    #        print(df_ttrips[df_ttrips.person_id == i])
+    #        count+=1
+    #    if(count == 150):
+    #        break
+#
+    #print("ACTIVITIES")
+    #print(df_activities[df_activities.person_id == 1])
+    #print(df_ttrips[df_ttrips.person_id == 1])
+#
+#
 
 
     return df_persons, df_activities, df_ttrips
