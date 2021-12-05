@@ -56,7 +56,7 @@ def execute(context):
 
     df_persons = df_persons.sort_values(by=['person_id'])
     df_activities = df_activities.sort_values(by=['person_id', 'activity_order'])
-    print("Population activity len:",df_activities.shape[0])
+    #print("Population activity len:",df_activities.shape[0])
     df_trips = df_trips.sort_values(by=['person_id', 'trip_order'])
 
     with gzip.open(output_path, 'wb+') as writer:
@@ -71,6 +71,7 @@ def execute(context):
             with context.progress(total = len(df_persons), label = "Writing population ...") as progress:
                 for person in df_persons.itertuples(index = False):
                     person_id = person[PERSON_COLS.index("person_id")]
+                    #print(person_id)
 
                     activities = []
                     trips = []

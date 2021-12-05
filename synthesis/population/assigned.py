@@ -55,9 +55,9 @@ def prepare_people(df_employed, df_students):
 
 def return_geometry_point(df_row):
     if(df_row.purpose == "home"):
-        return Point(df_row.residence_point.y, df_row.residence_point.x)
+        return Point(-df_row.residence_point.x, -df_row.residence_point.y)
     if(df_row.purpose in ["work", "education"]):
-        return Point(df_row.commute_point.y, df_row.commute_point.x)
+        return Point(-df_row.commute_point.x, -df_row.commute_point.y)
     return None
 
 def return_location(df_row):
@@ -156,14 +156,14 @@ def assign_activities_trips(args):
 
 
     df_ttrips = df_ttrips[df_ttrips.columns.intersection(columns_t)]
-    print(df_ttrips.columns)
+    #print(df_ttrips.columns)
 
     df_persons = df_persons[df_persons.columns.intersection(["person_id","trip_today"])]
-    print(df_persons.columns)
+    #print(df_persons.columns)
 
-    print(df_ttrips.traveling_mode.unique())
+    #print(df_ttrips.traveling_mode.unique())
     df_ttrips.traveling_mode = df_ttrips.traveling_mode.replace("car-passenger","car")
-    print(df_ttrips.traveling_mode.unique())
+
 
     return df_activities, df_persons, df_ttrips
 
@@ -271,12 +271,10 @@ def execute(context):
     df_activities, df_persons, df_ttrips = assign_activities_trips_par(df_persons, df_traveling, df_activities_hts, df_trips_hts)
     #cca 3 min
 
-    df_census_home= context.stage("synthesis.locations.census_home")
+    df_census_home = context.stage("synthesis.locations.census_home")
     df_home = context.stage("preprocess.home")
-    print("Extract residence points:")
+    print("Assign unemployed census:")
     df_u = df_census_home[~df_census_home.person_id.isin(df_traveling.person_id.unique())]
-    #print(df_u.info())
-    #print(df_u.head(10))
     df_u = df_u[['person_id', 'sex', 'age', 'employment', 'residence_id']]
     df_u = df_u.merge(df_home[["residence_id","geometry"]], left_on="residence_id", right_on="residence_id", how="left")
 
@@ -292,7 +290,7 @@ def execute(context):
     df_activities_u.loc[:,"purpose"] = "home"
     df_activities_u.loc[:,"start_time"] = np.nan
     df_activities_u.loc[:,"end_time"] = np.nan
-    df_activities_u.loc[:,"geometry"] = df_u.geometry.apply(lambda point: Point(point.y, point.x))
+    df_activities_u.loc[:,"geometry"] = df_u.geometry.apply(lambda point: Point(-point.x, -point.y))
     df_activities_u.loc[:,"activity_order"] = 0
     df_activities_u.loc[:,"location_id"] = df_u.residence_id.values
     df_activities = df_activities.append(df_activities_u)
@@ -310,6 +308,7 @@ def execute(context):
     print(df_activities.head())
     print(df_activities.purpose.value_counts(normalize=True))
     assert len(df_activities.person_id.unique()) == len(df_persons.person_id.unique())
+    print("Person id in persons that are not in activities:",set(df_persons.person_id.unique()) - set(df_activities.person_id.unique()))
     
 
     print("TRIPS:")
@@ -319,5 +318,11 @@ def execute(context):
     print(df_ttrips.info())
     print(df_ttrips.head())
 
+    df_persons.drop(["index"],axis=1, inplace=True) 
+    df_activities.drop(["index"],axis=1, inplace=True) 
+    print("personId = 0")
+    print(df_activities[df_activities.person_id == 0])
+    print(df_persons[df_persons.person_id == 0])
+    print(df_ttrips[df_ttrips.person_id == 0])
 
     return df_persons, df_activities, df_ttrips
