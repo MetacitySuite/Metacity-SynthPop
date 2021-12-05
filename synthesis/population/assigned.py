@@ -41,7 +41,14 @@ def configure(context):
 
 """
 def export_shp(df, output_shp):
+    travels = gpd.GeoDataFrame()
 
+    travels.loc[:,"geometry"] = df.geometry.apply(lambda point: Point(-point.x, -point.y))
+    #travels.loc[:,"district_name"] = df.district_name.values
+    travels.loc[:,"activities"] = df.count.values
+
+    travels[travels.travels].to_file(output_shp)
+    print("Saved to:", output_shp)
     return
 
 def prepare_people(df_employed, df_students):
@@ -49,9 +56,13 @@ def prepare_people(df_employed, df_students):
     df_traveling = pd.concat([df_employed, df_students])
     df_traveling.travels_to_work.fillna(False, inplace=True)
     df_traveling.travels_to_school.fillna(False, inplace=True)
+    df_not_traveling = df_traveling.iloc[np.where(df_traveling.travels_to_work == False) and np.where(df_traveling.travels_to_work == False)]
+    df_not_traveling.rename(columns={"residence_point":"geometry"}, inplace=True)
+    print(df_not_traveling.head())
+    df_traveling = df_traveling.iloc[np.where(df_traveling.travels_to_work == True) or np.where(df_traveling.travels_to_work == True)]
     df_persons.loc[:,"person_id"] = df_traveling.person_id.values
     #print(df_persons.trip_today.value_counts(normalize=True))
-    return df_persons, df_traveling
+    return df_persons, df_traveling, df_not_traveling
 
 def return_geometry_point(df_row):
     if(df_row.purpose == "home"):
@@ -164,7 +175,6 @@ def assign_activities_trips(args):
     #print(df_ttrips.traveling_mode.unique())
     df_ttrips.traveling_mode = df_ttrips.traveling_mode.replace("car-passenger","car")
 
-
     return df_activities, df_persons, df_ttrips
 
 
@@ -262,21 +272,30 @@ def execute(context):
     df_students = context.stage("synthesis.locations.matched_education")
 
     print("Preparing census people for activity chains:")
-    df_persons, df_traveling = prepare_people(df_employed, df_students)
+    df_persons, df_traveling, df_not_traveling = prepare_people(df_employed, df_students)
+    print("Persons traveling:", df_persons.shape[0])
+    print("Persons traveling (DF):", df_traveling.shape[0])
+    print("Persons not traveling (DF):", df_not_traveling.shape[0])
 
     print("Assigning:")
     #df_activities, df_persons, df_ttrips = assign_activities(df_persons.head(5000), df_traveling, df_activities_hts, df_trips_hts)
     #df_activities, df_persons, df_ttrips = assign_activities_trips([df_persons.head(200000), df_traveling, df_activities_hts, df_trips_hts])
     
     df_activities, df_persons, df_ttrips = assign_activities_trips_par(df_persons, df_traveling, df_activities_hts, df_trips_hts)
-    #cca 3 min
+    #cca 2 min
 
     df_census_home = context.stage("synthesis.locations.census_home")
     df_home = context.stage("preprocess.home")
-    print("Assign unemployed census:")
+    print("Assign unemployed census and assigned people who stay at home (travel not in Prague):")
     df_u = df_census_home[~df_census_home.person_id.isin(df_traveling.person_id.unique())]
     df_u = df_u[['person_id', 'sex', 'age', 'employment', 'residence_id']]
     df_u = df_u.merge(df_home[["residence_id","geometry"]], left_on="residence_id", right_on="residence_id", how="left")
+    #print("DF_U")
+    #print(df_u.shape[0])
+    #df_u = df_u.append(df_not_traveling)
+    #df_u.reset_index(inplace=True)
+    print("DF_U")
+    print(df_u.shape[0])
 
     #add unemployed to df_persons
     df_persons_u = df_u[["person_id"]]
@@ -320,9 +339,20 @@ def execute(context):
 
     df_persons.drop(["index"],axis=1, inplace=True) 
     df_activities.drop(["index"],axis=1, inplace=True) 
-    print("personId = 0")
-    print(df_activities[df_activities.person_id == 0])
-    print(df_persons[df_persons.person_id == 0])
-    print(df_ttrips[df_ttrips.person_id == 0])
+
+    
+
+
+    #
+    #print("Exporting SHPs")
+    #df_a_home = df_activities[df_activities.purpose == "home"]
+    #df_a_home.drop_duplicates(["person_id"], inplace=True)
+#
+    #df_a_home = pd.DataFrame()
+    #val_c = df_a_home.geometry.value_counts()
+    #df_a_home.loc[:,"geometry"] = val_c.index
+    #df_a_home.loc[:,"count"] = val_c.values
+
+
 
     return df_persons, df_activities, df_ttrips
