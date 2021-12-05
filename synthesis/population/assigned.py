@@ -191,6 +191,8 @@ def assign_activities_trips_par(df_persons, df_traveling, df_activities_hts, df_
     return df_activities, df_persons, df_ttrips
 
 
+
+#unused - slower and does not impute times, still good for testing
 def assign_activities(df_persons, df_traveling, df_activities_hts, df_trips_hts):
     columns = ["traveler_id","purpose","start_time","end_time", "activity_order","location_id"]
     columns_t = ["traveler_id", "traveling_mode", "trip_order"]
@@ -246,7 +248,7 @@ def assign_activities(df_persons, df_traveling, df_activities_hts, df_trips_hts)
     
     return df_activities, df_persons, df_ttrips
 
-
+    
 
 def execute(context):
     df_activities_hts,df_trips_hts = context.stage("preprocess.extract_hts_trip_chains")
@@ -267,12 +269,40 @@ def execute(context):
     #df_activities, df_persons, df_ttrips = assign_activities_trips([df_persons.head(200000), df_traveling, df_activities_hts, df_trips_hts])
     
     df_activities, df_persons, df_ttrips = assign_activities_trips_par(df_persons, df_traveling, df_activities_hts, df_trips_hts)
-    
+    #cca 2 min
 
+    df_census_home= context.stage("synthesis.locations.census_home")
+    df_home = context.stage("preprocess.home")
+    print("Extract residence points:")
+    df_u = df_census_home[~df_census_home.person_id.isin(df_traveling.person_id.unique())]
+    #print(df_u.info())
+    #print(df_u.head(10))
+    df_u = df_u[['person_id', 'sex', 'age', 'employment', 'residence_id']]
+    df_u = df_u.merge(df_home[["residence_id","geometry"]], left_on="residence_id", right_on="residence_id", how="left")
+    df_u.rename(columns = {"geometry":"residence_point"}, inplace=True)
+
+    #add unemployed to df_persons
+    df_persons_u = df_u[["person_id"]]
+    df_persons_u.loc[:,"trip_today"] = False
+    df_persons = df_persons.append(df_persons_u)
+    df_persons.reset_index(inplace=True)
+    #add unemployed to df_activities
+    columns = ["person_id","purpose","start_time","end_time", "activity_order","location_id"]
+    df_activities_u = pd.DataFrame(columns=columns)
+    df_activities_u.loc[:,"person_id"] = df_persons_u.person_id.values
+    df_activities_u.loc[:,"purpose"] = "home"
+    df_activities_u.loc[:,"start_time"] = np.nan
+    df_activities_u.loc[:,"end_time"] = np.nan
+    df_activities_u.loc[:,"activity_order"] = 0
+    df_activities = df_activities.append(df_activities_u)
+    df_activities.reset_index(inplace=True)
+
+    
     print("PERSONS:")
     #print(df_persons.info())
     print(df_persons.head())
     print(df_persons.trip_today.value_counts(normalize=True))
+    assert len(df_persons.person_id.unique()) == df_persons.shape[0]
 
     print("ACTIVITIES:")
     print(df_activities.info())
@@ -281,18 +311,11 @@ def execute(context):
 
 
     print("TRIPS:")
+    #
+    df_ttrips.traveling_mode = df_ttrips.traveling_mode.replace("other","car") #TODO
+
     print(df_ttrips.info())
     print(df_ttrips.head())
-
-
-    #print("ACTIVITIES")
-    #print(df_activities[df_activities.person_id == 1])
-    #print(df_ttrips[df_ttrips.person_id == 1])
-    #print(df_traveling[df_traveling.person_id == 1])
-    #print(df_activities_hts[df_activities_hts.traveler_id == 1178])
-    #print(df_trips_hts[df_trips_hts.traveler_id == 1178])
-#
-    
 
 
     return df_persons, df_activities, df_ttrips
