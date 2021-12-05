@@ -97,8 +97,6 @@ def execute(context):
                         else:
                             trips.append(trip)
                     
-                    print(person_id)
-                    print(len(activities), len(trips))
                     assert len(trips) == len(activities) - 1
 
                     add_person(writer, person, activities, trips)
