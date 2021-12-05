@@ -29,7 +29,7 @@ def add_person(writer, person, activities, trips):
         #    None if location_id == -1 else location_id
         #)
 
-        location = writer.location(-geometry.y, -geometry.x)
+        location = writer.location(geometry.x, geometry.y)
 
         writer.add_activity(
             type = activity[ACTIVITY_COLS.index("purpose")],
@@ -56,6 +56,7 @@ def execute(context):
 
     df_persons = df_persons.sort_values(by=['person_id'])
     df_activities = df_activities.sort_values(by=['person_id', 'activity_order'])
+    print("Population activity len:",df_activities.shape[0])
     df_trips = df_trips.sort_values(by=['person_id', 'trip_order'])
 
     with gzip.open(output_path, 'wb+') as writer:
