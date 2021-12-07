@@ -27,7 +27,9 @@ def configure(context):
     context.config("epsg")
 
     context.stage("preprocess.clean_census")
+    context.stage("preprocess.clean_travel_survey")
     context.stage("preprocess.home")
+    context.stage("synthesis.population.matched")
     context.stage("synthesis.locations.census_home")
     context.stage("synthesis.locations.matched_work")
     context.stage("synthesis.locations.matched_education")
@@ -127,28 +129,33 @@ def assign_activities_trips(args):
     columns_t = ["person_id", "traveling_mode", "trip_order"]
 
     #add traveler_id to persons
-    df_persons.loc[:,"traveler_id"] = df_persons.merge(df_traveling[["person_id","hdm_source_id"]], 
-                                                    left_on="person_id", right_on="person_id", how="left").hdm_source_id.values
+    merged = df_persons.merge(df_traveling[["person_id","hdm_source_id","car_avail","driving_license"]], 
+                                                    left_on="person_id", right_on="person_id", how="left")
 
+    df_persons.loc[:,"traveler_id"] = merged.hdm_source_id.values
     df_activities = df_persons.merge(df_activities_hts,
                                     left_on="traveler_id", right_on="traveler_id", how="left")
 
     
     df_persons.loc[:,"trip_today"] = df_persons.apply(lambda row: (df_activities.person_id.values == row["person_id"]).sum() > 1 ,axis=1) 
-    print(df_persons.trip_today.value_counts(normalize=True))
+    #print(df_persons.trip_today.value_counts(normalize=True))
+    df_persons.loc[:,"car_avail"] = merged[["car_avail"]]
+    df_persons.loc[:,"driving_license"] = merged[["driving_license"]]
+    del(merged)
+
     #impute geometry
-    print("Imputing geometry")
+    #print("Imputing geometry")
     locations = df_activities.merge(df_traveling[["person_id","residence_id","commute_point","residence_point"]],
                                     left_on="person_id", right_on="person_id", how="left")
 
     df_activities.loc[:, "geometry"] = locations.apply(lambda row: return_geometry_point(row),axis=1)
     
     #impute location_id
-    print("Imputing location id")
+    #print("Imputing location id")
     df_activities.loc[:, "location_id"] = locations.apply(lambda row: return_location(row),axis=1)
     
     #impute start and end time variation
-    print("Imputing time")
+    #print("Imputing time")
     df_activities.sort_values(["person_id","activity_order"],inplace=True)
     df_activities.reset_index(inplace=True)
     df_activities.loc[:,"trip_duration"] = [return_trip_duration(row, next_row) 
@@ -169,10 +176,11 @@ def assign_activities_trips(args):
     df_ttrips = df_ttrips[df_ttrips.columns.intersection(columns_t)]
     #print(df_ttrips.columns)
 
-    df_persons = df_persons[df_persons.columns.intersection(["person_id","trip_today"])]
+    df_persons = df_persons[df_persons.columns.intersection(["person_id","trip_today","car_avail","driving_license"])]
     #print(df_persons.columns)
 
     #print(df_ttrips.traveling_mode.unique())
+    #TODO change if child
     df_ttrips.traveling_mode = df_ttrips.traveling_mode.replace("car-passenger","car")
 
     return df_activities, df_persons, df_ttrips
@@ -261,6 +269,8 @@ def assign_activities(df_persons, df_traveling, df_activities_hts, df_trips_hts)
     
 
 def execute(context):
+    _, df_travelers, _ = context.stage("preprocess.clean_travel_survey")
+
     df_activities_hts,df_trips_hts = context.stage("preprocess.extract_hts_trip_chains")
     print("HTS activity chains:")
     print(df_activities_hts.head())
@@ -273,6 +283,9 @@ def execute(context):
 
     print("Preparing census people for activity chains:")
     df_persons, df_traveling, df_not_traveling = prepare_people(df_employed, df_students)
+    df_traveling = df_traveling.merge(df_travelers[["traveler_id","car_avail","driving_license"]],
+                                    left_on="hdm_source_id", right_on="traveler_id", how="left")
+
     print("Persons traveling:", df_persons.shape[0])
     print("Persons traveling (DF):", df_traveling.shape[0])
     print("Persons not traveling (DF):", df_not_traveling.shape[0])
@@ -280,15 +293,29 @@ def execute(context):
     print("Assigning:")
     #df_activities, df_persons, df_ttrips = assign_activities(df_persons.head(5000), df_traveling, df_activities_hts, df_trips_hts)
     #df_activities, df_persons, df_ttrips = assign_activities_trips([df_persons.head(200000), df_traveling, df_activities_hts, df_trips_hts])
+    print(df_traveling.head())
+    print(df_traveling.columns)
+
+    
     
     df_activities, df_persons, df_ttrips = assign_activities_trips_par(df_persons, df_traveling, df_activities_hts, df_trips_hts)
     #cca 2 min
+    print("Activities to traveling census assigned.")
+    print(df_persons.info())
 
     df_census_home = context.stage("synthesis.locations.census_home")
+    df_census_matched = context.stage("synthesis.population.matched")
+    df_census_matched = df_census_matched.merge(df_travelers[["traveler_id","car_avail","driving_license"]],
+                                    left_on="hdm_source_id", right_on="traveler_id", how="left")
+
+    df_census_matched.loc[:,"residence_id"] = df_census_matched.merge(df_census_home[["person_id","residence_id"]],
+                                    left_on="person_id", right_on="person_id", how="left").residence_id.values
+
+    print(df_census_matched.head())
     df_home = context.stage("preprocess.home")
     print("Assign unemployed census and assigned people who stay at home (travel not in Prague):")
-    df_u = df_census_home[~df_census_home.person_id.isin(df_traveling.person_id.unique())]
-    df_u = df_u[['person_id', 'sex', 'age', 'employment', 'residence_id']]
+    df_u = df_census_matched[~df_census_matched.person_id.isin(df_traveling.person_id.unique())]
+    df_u = df_u[['person_id', 'sex', 'age', 'employment', 'residence_id', "car_avail","driving_license"]]
     df_u = df_u.merge(df_home[["residence_id","geometry"]], left_on="residence_id", right_on="residence_id", how="left")
     #print("DF_U")
     #print(df_u.shape[0])
@@ -300,6 +327,8 @@ def execute(context):
     #add unemployed to df_persons
     df_persons_u = df_u[["person_id"]]
     df_persons_u.loc[:,"trip_today"] = False
+    df_persons_u.loc[:,"car_avail"] = df_u[["car_avail"]]
+    df_persons_u.loc[:,"driving_license"] = df_u[["driving_license"]]
     df_persons = df_persons.append(df_persons_u)
     df_persons.reset_index(inplace=True)
     #add unemployed to df_activities
@@ -316,6 +345,11 @@ def execute(context):
     df_activities.reset_index(inplace=True)
 
     
+
+
+    df_persons.drop(["index"],axis=1, inplace=True) 
+    df_activities.drop(["index"],axis=1, inplace=True) 
+
     print("PERSONS:", df_persons.shape[0])
     #print(df_persons.info())
     print(df_persons.head())
@@ -331,14 +365,7 @@ def execute(context):
     
 
     print("TRIPS:")
-    df_ttrips.traveling_mode = df_ttrips.traveling_mode.replace("other","car") 
-    #TODO impute value by category in preprocessing (beeline or time)
-
     print(df_ttrips.info())
     print(df_ttrips.head())
-
-    df_persons.drop(["index"],axis=1, inplace=True) 
-    df_activities.drop(["index"],axis=1, inplace=True) 
-
 
     return df_persons, df_activities, df_ttrips

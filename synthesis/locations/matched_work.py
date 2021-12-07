@@ -82,8 +82,6 @@ def export_shp(df, output_shp):
 
 
 def execute(context):
-    #df_matched = context.stage("synthesis.population.matched")
-    df_households, df_travelers, df_trips = context.stage("preprocess.clean_travel_survey")
     df_home = context.stage("preprocess.home")
     df_census_home = context.stage("synthesis.locations.census_home")
     epsg = context.config("epsg")
@@ -146,7 +144,6 @@ def execute(context):
     print("Employed census with workplace points:")
     #print(df_census_assigned_workplace.info())
     print(df_census_assigned.head())
-
 
     #result validation and export to shp
     geometries = df_census_assigned.commute_point.apply(lambda x: x.wkt).values

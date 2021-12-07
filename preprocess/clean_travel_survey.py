@@ -17,6 +17,30 @@ This stage cleans the travel survey. The travel survey consists of three tables:
 
 #Suppress possible (false positive) warning - returning a view versus a copy.
 #pd.options.mode.chained_assignment = None  # default='warn'
+def fast_mode(df, key_cols, value_col):
+    """ 
+    Calculate a column mode, by group, ignoring null values. 
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame over which to calcualate the mode. 
+    key_cols : list of str
+        Columns to groupby for calculation of mode.
+    value_col : str
+        Column for which to calculate the mode. 
+
+    Return
+    ------ 
+    pandas.DataFrame
+        One row for the mode of value_col per key_cols group. If ties, 
+        returns the one which is sorted first. 
+    """
+    return (df.groupby(key_cols + [value_col]).size() 
+              .to_frame('counts').reset_index() 
+              .sort_values('counts', ascending=False) 
+              .drop_duplicates(subset=key_cols)).drop(columns='counts')
+
 
 def age_class_to_interval(age_class):
     bounds = re.split("[-|+]", age_class)
@@ -260,6 +284,18 @@ def connect_tables(df_hh, df_travelers, df_trips):
 
     return df_hh, df_travelers, df_trips
 
+def fill_traveling_mode(df_trips):
+    df_trips.loc[:,"duration"] = abs(df_trips.arrival_time - df_trips.departure_time)/60
+    df_trips.loc[:,"speed"] = (df_trips.beeline / (df_trips.duration/60))
+    df_trips.loc[:,"speed"] = df_trips.speed.fillna(df_trips.speed.mean())
+    df_trips.loc[:,"traveling_mode"] = df_trips.traveling_mode.replace("other", np.nan)
+    #print(len(df_trips.speed.unique()))
+
+    df_trips = df_trips.groupby(["speed"]).apply(lambda x: x.fillna(x.mode().iloc[0])).sort_values('traveler_id').reset_index(drop=True)
+    df_trips.loc[:,"traveling_mode"] = df_trips.traveling_mode.fillna("pt")
+    df_trips.drop(["duration","speed"], axis=1, inplace=True)
+    return df_trips
+
 def configure(context):
     context.config("data_path")
     context.config("travel_survey_files")
@@ -310,13 +346,9 @@ def execute(context):
     #re-connect all data
     df_hh, df_travelers, df_trips = connect_tables(df_hh, df_travelers, df_trips)
 
-    # TODO traveling mode replace other
-    df_trips.loc[:,"duration"] = abs(df_trips.arrival_time - df_trips.departure_time)
-    print(df_trips.traveling_mode.value_counts())
-    print(df_trips.head())
-    print(df_trips[df_trips.traveling_mode == "other"])
-    #df_trips.loc[:,"traveling_mode"]
-    
-
+    #traveling mode: replace other
+    #print(df_trips.info())
+    df_trips = fill_traveling_mode(df_trips)
+    #print(df_trips.info())
 
     return df_hh, df_travelers, df_trips
