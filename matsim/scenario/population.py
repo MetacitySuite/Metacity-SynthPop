@@ -9,12 +9,17 @@ MATSim XML population exporter
 https://github.com/eqasim-org/sao_paulo/blob/master/matsim/scenario/population.py
 """
 
-PERSON_COLS = ['person_id', 'trip_today']
+PERSON_COLS = ['person_id', 'trip_today', 'car_avail', 'driving_license']
 ACTIVITY_COLS = ['person_id', 'purpose', 'start_time', 'end_time', 'geometry', 'activity_order', 'location_id']
 TRIP_COLS = ['person_id', 'traveling_mode', 'trip_order']
 
 def add_person(writer, person, activities, trips):
     writer.start_person(person[PERSON_COLS.index("person_id")])
+    writer.start_attributes()
+    writer.add_attribute("carAvail", "java.lang.String", "always" if person[PERSON_COLS.index("car_avail")] else "never") 
+    writer.add_attribute("hasLicense", "java.lang.String", writer.yes_no(person[PERSON_COLS.index("driving_license")]))
+    writer.end_attributes()
+
     writer.start_plan(selected = True)
 
     for activity, trip in itertools.zip_longest(activities, trips):
