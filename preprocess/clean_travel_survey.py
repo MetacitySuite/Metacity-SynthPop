@@ -241,14 +241,14 @@ def connect_tables(df_hh, df_travelers, df_trips):
 
     #remap ids
     old_traveler_id = df_travelers['traveler_id'].unique()
-    new_traveler_id = np.arange(len(old_traveler_id))
+    new_traveler_id = np.arange(1,len(old_traveler_id)+1)
     mapping_traveler_id = dict(zip(old_traveler_id, new_traveler_id))
     
     df_travelers.loc[:, 'traveler_id'] = df_travelers['traveler_id'].replace(mapping_traveler_id)
     df_trips.loc[:, 'traveler_id'] = df_trips['traveler_id'].replace(mapping_traveler_id)
     
     old_household_id = df_hh['household_id'].unique()
-    new_household_id = np.arange(len(old_household_id))
+    new_household_id = np.arange(1,len(old_household_id)+1)
     mapping_household_id = dict(zip(old_household_id, new_household_id))
     
     df_hh.loc[:, 'household_id'] = df_hh['household_id'].replace(mapping_household_id)
@@ -309,6 +309,14 @@ def execute(context):
     
     #re-connect all data
     df_hh, df_travelers, df_trips = connect_tables(df_hh, df_travelers, df_trips)
+
+    # TODO traveling mode replace other
+    df_trips.loc[:,"duration"] = abs(df_trips.arrival_time - df_trips.departure_time)
+    print(df_trips.traveling_mode.value_counts())
+    print(df_trips.head())
+    print(df_trips[df_trips.traveling_mode == "other"])
+    #df_trips.loc[:,"traveling_mode"]
+    
 
 
     return df_hh, df_travelers, df_trips

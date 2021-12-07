@@ -57,4 +57,5 @@ def execute(context):
     #fill in and remap missing values
     df_census = remap_values(context, df_census)
     df_census = df_census.reset_index(drop=True)
+    df_census.loc[:,"person_id"] = range(1,df_census.shape[0]+1)
     return df_census

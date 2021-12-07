@@ -340,19 +340,5 @@ def execute(context):
     df_persons.drop(["index"],axis=1, inplace=True) 
     df_activities.drop(["index"],axis=1, inplace=True) 
 
-    
-
-
-    #
-    #print("Exporting SHPs")
-    #df_a_home = df_activities[df_activities.purpose == "home"]
-    #df_a_home.drop_duplicates(["person_id"], inplace=True)
-#
-    #df_a_home = pd.DataFrame()
-    #val_c = df_a_home.geometry.value_counts()
-    #df_a_home.loc[:,"geometry"] = val_c.index
-    #df_a_home.loc[:,"count"] = val_c.values
-
-
 
     return df_persons, df_activities, df_ttrips
