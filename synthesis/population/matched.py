@@ -39,7 +39,7 @@ def execute(context):
     df_target = df_census
 
     #set age class for better matching
-    AGE_BOUNDARIES = [15, 30, 45, 65, 75, np.inf]
+    AGE_BOUNDARIES = [18, 30, 45, 65, 75, np.inf]
     df_source["age_class"] = np.digitize(df_source["age"], AGE_BOUNDARIES, right = True)
     df_target["age_class"] = np.digitize(df_target["age"], AGE_BOUNDARIES, right = True)
 

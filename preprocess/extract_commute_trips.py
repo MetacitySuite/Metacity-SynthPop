@@ -78,7 +78,7 @@ def extract_travelling_workers(df_trips, df_matched, prague_area):
     print("Workers in HTS:",len(hts_workers))
     #print(df_matched.head())
     employed = df_matched.loc[df_matched.employment == "employed"]
-    print("Employed in census:", len(employed))
+    print("Employed in census:", len(employed.hdm_source_id.unique()))
 
     no_trip = employed[~employed.hdm_source_id.isin(hts_workers)]
     print("Employed with no HTS trip:", len(no_trip))

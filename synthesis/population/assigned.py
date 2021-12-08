@@ -55,16 +55,12 @@ def export_shp(df, output_shp):
 
 def prepare_people(df_employed, df_students):
     df_persons = pd.DataFrame(columns=["person_id","trip_today"])
-    df_traveling = pd.concat([df_employed, df_students])
-    df_traveling.travels_to_work.fillna(False, inplace=True)
-    df_traveling.travels_to_school.fillna(False, inplace=True)
-    df_not_traveling = df_traveling.iloc[np.where(df_traveling.travels_to_work == False) and np.where(df_traveling.travels_to_work == False)]
-    df_not_traveling.rename(columns={"residence_point":"geometry"}, inplace=True)
-    print(df_not_traveling.head())
-    df_traveling = df_traveling.iloc[np.where(df_traveling.travels_to_work == True) or np.where(df_traveling.travels_to_work == True)]
+    df_traveling = df_employed[df_employed.travels_to_work == True].append(df_students[df_students.travels_to_school == True])
+    print("df traveling", df_traveling.shape[0])
     df_persons.loc[:,"person_id"] = df_traveling.person_id.values
-    #print(df_persons.trip_today.value_counts(normalize=True))
-    return df_persons, df_traveling, df_not_traveling
+
+    print("Students traveling to school:\n", df_traveling.travels_to_school.value_counts())
+    return df_persons, df_traveling
 
 def return_geometry_point(df_row):
     if(df_row.purpose == "home"):
@@ -143,8 +139,8 @@ def assign_activities_trips(args):
     
     df_persons.loc[:,"trip_today"] = df_persons.apply(lambda row: (df_activities.person_id.values == row["person_id"]).sum() > 1 ,axis=1) 
     #print(df_persons.trip_today.value_counts(normalize=True))
-    df_persons.loc[:,"car_avail"] = merged[["car_avail"]]
-    df_persons.loc[:,"driving_license"] = merged[["driving_license"]]
+    df_persons.loc[:,"car_avail"] = merged.car_avail.values
+    df_persons.loc[:,"driving_license"] = merged.driving_license.values
     del(merged)
 
     #impute geometry
@@ -286,22 +282,18 @@ def execute(context):
     df_students = context.stage("synthesis.locations.matched_education")
 
     print("Preparing census people for activity chains:")
-    df_persons, df_traveling, df_not_traveling = prepare_people(df_employed, df_students)
+    df_persons, df_traveling = prepare_people(df_employed, df_students)
     df_traveling = df_traveling.merge(df_travelers[["traveler_id","car_avail","driving_license"]],
                                     left_on="hdm_source_id", right_on="traveler_id", how="left")
 
-    print("Persons traveling:", df_persons.shape[0])
+    print("Persons:", df_persons.shape[0])
     print("Persons traveling (DF):", df_traveling.shape[0])
-    print("Persons not traveling (DF):", df_not_traveling.shape[0])
+    print("Persons employed:", df_employed.shape[0])
+    print("Persons students: ", df_students.shape[0])
+    #print("Children in traveling:")
 
-    print("Assigning:")
-    #df_activities, df_persons, df_ttrips = assign_activities(df_persons.head(5000), df_traveling, df_activities_hts, df_trips_hts)
-    #df_activities, df_persons, df_ttrips = assign_activities_trips([df_persons.head(200000), df_traveling, df_activities_hts, df_trips_hts])
-    print(df_traveling.head())
-    print(df_traveling.columns)
 
-    
-    
+    print("Assigning:")    
     df_activities, df_persons, df_ttrips = assign_activities_trips_par(df_persons, df_traveling, df_activities_hts, df_trips_hts)
     #cca 2 min
     print("Activities to traveling census assigned.")
@@ -311,7 +303,6 @@ def execute(context):
     df_census_matched = context.stage("synthesis.population.matched")
     df_census_matched = df_census_matched.merge(df_travelers[["traveler_id","car_avail","driving_license"]],
                                     left_on="hdm_source_id", right_on="traveler_id", how="left")
-
     df_census_matched.loc[:,"residence_id"] = df_census_matched.merge(df_census_home[["person_id","residence_id"]],
                                     left_on="person_id", right_on="person_id", how="left").residence_id.values
 
@@ -321,18 +312,14 @@ def execute(context):
     df_u = df_census_matched[~df_census_matched.person_id.isin(df_traveling.person_id.unique())]
     df_u = df_u[['person_id', 'sex', 'age', 'employment', 'residence_id', "car_avail","driving_license"]]
     df_u = df_u.merge(df_home[["residence_id","geometry"]], left_on="residence_id", right_on="residence_id", how="left")
-    #print("DF_U")
-    #print(df_u.shape[0])
-    #df_u = df_u.append(df_not_traveling)
-    #df_u.reset_index(inplace=True)
-    print("DF_U")
-    print(df_u.shape[0])
 
     #add unemployed to df_persons
-    df_persons_u = df_u[["person_id"]]
+    df_persons_u = pd.DataFrame()
+    df_persons_u.loc[:,"person_id"] = df_u.person_id.values
     df_persons_u.loc[:,"trip_today"] = False
-    df_persons_u.loc[:,"car_avail"] = df_u[["car_avail"]]
-    df_persons_u.loc[:,"driving_license"] = df_u[["driving_license"]]
+    df_persons_u.loc[:,"car_avail"] = df_u.car_avail.values
+    df_persons_u.loc[:,"driving_license"] = df_u.driving_license.values
+    
     df_persons = df_persons.append(df_persons_u)
     df_persons.reset_index(inplace=True)
     #add unemployed to df_activities
@@ -349,16 +336,15 @@ def execute(context):
     df_activities.reset_index(inplace=True)
 
     
-
-
     df_persons.drop(["index"],axis=1, inplace=True) 
     df_activities.drop(["index"],axis=1, inplace=True) 
 
     print("PERSONS:", df_persons.shape[0])
-    #print(df_persons.info())
+    print(df_persons.info())
     print(df_persons.head())
     print(df_persons.trip_today.value_counts(normalize=True))
     assert len(df_persons.person_id.unique()) == df_persons.shape[0]
+    assert not df_persons.isnull().values.any()
 
     print("ACTIVITIES:", df_activities.shape[0])
     print(df_activities.info())
@@ -373,5 +359,16 @@ def execute(context):
     print(df_ttrips.head())
 
     #car-passenger without drivers_lic and car avail
+    #df_ttrips.travel_mode = df_ttrips.replace("car-passenger","car")
+    print(df_persons.driving_license.value_counts())
+    cars = df_ttrips[df_ttrips.traveling_mode == "car"]
+    #pd.set_option('display.max_rows', None)
+    drivers = cars.person_id.unique() #TODO driving_lic = True if drives a car
+    df_persons.loc[:, "driving_license"] = df_persons.apply(lambda row: row.driving_license or row.person_id in drivers,axis=1)
+    print(df_persons.driving_license.value_counts())
+    print(df_ttrips.traveling_mode.value_counts())
+
+    print("People traveling today:")
+    print(df_persons.trip_today.value_counts())
 
     return df_persons, df_activities, df_ttrips

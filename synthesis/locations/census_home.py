@@ -23,7 +23,7 @@ Sample number of houses for the people living in the zone
 
 def assign_houses(df_people, df_houses, seed):
     houses = df_houses.sample(n = len(df_people), weights='resident_number', replace = True, random_state = seed)
-    df_people['residence_id'] = houses['residence_id'].values
+    df_people.loc[:,'residence_id'] = houses['residence_id'].values
     assigned_houses = df_people[['person_id', 'residence_id']].values
     return assigned_houses
 
