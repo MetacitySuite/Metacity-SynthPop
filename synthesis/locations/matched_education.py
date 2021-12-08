@@ -82,8 +82,6 @@ def export_shp(df, output_shp):
 
 
 def execute(context):
-    #df_matched = context.stage("synthesis.population.matched")
-    df_households, df_travelers, df_trips = context.stage("preprocess.clean_travel_survey")
     df_home = context.stage("preprocess.home")
     df_census_home = context.stage("synthesis.locations.census_home")
     epsg = context.config("epsg")

@@ -90,6 +90,10 @@ def return_trip_duration(row, next_row):
     if(next_row.start_time == np.nan or row.end_time == np.nan):
         return np.nan
     
+    if(next_row.start_time < row.end_time):
+        midnight = 24*60*60
+        return abs(next_row.start_time + (midnight - row.end_time))
+
     return abs(next_row.start_time - row.end_time)
     
 
@@ -181,7 +185,7 @@ def assign_activities_trips(args):
 
     #print(df_ttrips.traveling_mode.unique())
     #TODO change if child
-    df_ttrips.traveling_mode = df_ttrips.traveling_mode.replace("car-passenger","car")
+    #df_ttrips.traveling_mode = df_ttrips.traveling_mode.replace("car-passenger","car")
 
     return df_activities, df_persons, df_ttrips
 
@@ -367,5 +371,7 @@ def execute(context):
     print("TRIPS:")
     print(df_ttrips.info())
     print(df_ttrips.head())
+
+    #car-passenger without drivers_lic and car avail
 
     return df_persons, df_activities, df_ttrips

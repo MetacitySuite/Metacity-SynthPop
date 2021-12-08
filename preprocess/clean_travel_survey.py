@@ -284,15 +284,25 @@ def connect_tables(df_hh, df_travelers, df_trips):
 
     return df_hh, df_travelers, df_trips
 
+def return_trip_duration(arrival, departure):
+    if(arrival < departure):
+        midnight = 24*60*60
+        return abs(arrival + (midnight - departure))
+        
+    return abs(arrival- departure)
+
 def fill_traveling_mode(df_trips):
-    df_trips.loc[:,"duration"] = abs(df_trips.arrival_time - df_trips.departure_time)/60
+    print("Trips:", len(df_trips))
+    df_trips.loc[:,"duration"] = df_trips.apply(lambda row: return_trip_duration(row.arrival_time, row.departure_time)/60, axis=1)
     df_trips.loc[:,"speed"] = (df_trips.beeline / (df_trips.duration/60))
     df_trips.loc[:,"speed"] = df_trips.speed.fillna(df_trips.speed.mean())
     df_trips.loc[:,"traveling_mode"] = df_trips.traveling_mode.replace("other", np.nan)
-    #print(len(df_trips.speed.unique()))
+    print("Unique speeds",len(df_trips.speed.unique()))
 
     df_trips = df_trips.groupby(["speed"]).apply(lambda x: x.fillna(x.mode().iloc[0])).sort_values('traveler_id').reset_index(drop=True)
+    print(df_trips[df_trips.traveling_mode.isna()])
     df_trips.loc[:,"traveling_mode"] = df_trips.traveling_mode.fillna("pt")
+    print(df_trips[df_trips.traveling_mode.isna()])
     df_trips.drop(["duration","speed"], axis=1, inplace=True)
     return df_trips
 
