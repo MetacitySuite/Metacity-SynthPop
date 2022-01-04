@@ -278,6 +278,9 @@ def connect_tables(df_hh, df_travelers, df_trips):
     df_hh.loc[:, 'household_id'] = df_hh['household_id'].replace(mapping_household_id)
     df_travelers.loc[:, 'household_id'] = df_travelers['household_id'].replace(mapping_household_id)
 
+    #drop travelers in df_trips that are not in df_travelers
+    df_trips = df_trips[df_trips.traveler_id.isin(df_travelers.traveler_id.unique())]
+
     df_hh = df_hh.reset_index(drop=True)
     df_travelers = df_travelers.reset_index(drop=True)
     df_trips = df_trips.reset_index(drop=True)
@@ -358,6 +361,7 @@ def execute(context):
 
     #traveling mode: replace other
     #print(df_trips.info())
+
     df_trips = fill_traveling_mode(df_trips)
     #print(df_trips.info())
 
