@@ -61,12 +61,12 @@ def export_trip_chains(df_travelers, df_trips):
         last_activity = np.nan
         day_started = False
         for ix, trip in day.iterrows():
-            if(trip.origin_purpose in purposes and trip.origin_purpose != last_activity):
+            if((trip.origin_purpose in purposes) and (trip.origin_purpose != last_activity)):
                 day_started = True
                 activities.append(trip.origin_purpose)
                 end_times.append(trip.departure_time)
                 last_activity = trip.origin_purpose
-            if(day_started and trip.destination_purpose in purposes and (len(activities) == 0 or trip.destination_purpose !=activities[-1])):
+            if(day_started and trip.destination_purpose in purposes and ((len(activities) == 0) or (trip.destination_purpose !=activities[-1]))):
                 destinations.append(trip.destination_purpose)
                 start_times.append(trip.arrival_time)
                 trips_m.append(trip.traveling_mode) #TODO fix proper trip modes

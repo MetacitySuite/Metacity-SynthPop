@@ -4,6 +4,7 @@ from numpy.random.mtrand import hypergeometric, seed
 import pandas as pd
 import numpy as np
 import geopandas as gpd
+from shapely import geometry
 from tqdm import tqdm
 from pyproj import Geod
 from shapely.geometry import LineString, Point, point
@@ -11,6 +12,8 @@ from multiprocessing import Pool, cpu_count
 import os
 #import seaborn as sns
 #import matplotlib.pyplot as plt
+
+WALKING_DIST = 150
 
 
 """
@@ -123,6 +126,16 @@ def return_time_variation(df_row, column, prev_row=None, df = None):
 
     return df_row[column] + offset
 
+
+def walk_short_distance(df_row):
+    #speed = df_row.distance / df_row.trip_duration
+
+    if(df_row.distance <= WALKING_DIST):
+        return "walk"
+
+    return df_row.traveling_mode
+
+
 def assign_activities_trips(args):
     df_persons, df_traveling, df_activities_hts, df_trips_hts = args
     columns = ["person_id","purpose","start_time","end_time","geometry", "activity_order","location_id"]
@@ -165,15 +178,36 @@ def assign_activities_trips(args):
     df_activities.loc[:, "end_time"] = [return_time_variation(row, "end_time", prev_row, df_activities)for row, prev_row in zip(df_activities.iterrows(),df_activities.shift(1).iterrows())]
     #print(df_activities[["person_id","purpose","start_time","end_time","trip_duration","activity_order"]].head(20))
 
-    #drop unused columns
-    df_activities = df_activities[df_activities.columns.intersection(columns)]
+    
 
     #prepare trips
     df_ttrips = df_persons.merge(df_trips_hts,
                                     left_on="traveler_id", right_on="traveler_id", how="inner")
 
+    # TODO merge with activities and change travel mode if distance is too short
+    df_ttrip_activity = df_ttrips
+    df_ttrip_activity.loc[:,"origin"] = df_ttrip_activity.merge(df_activities, 
+                                left_on=["person_id", "trip_order"], right_on=["person_id","activity_order"],
+                                how="left").geometry.values
+    df_ttrip_activity.loc[:,"trip_duration"] = df_ttrip_activity.merge(df_activities, 
+                                left_on=["person_id", "trip_order"], right_on=["person_id","activity_order"],
+                                how="left").trip_duration.values/60
 
-    df_ttrips = df_ttrips[df_ttrips.columns.intersection(columns_t)]
+    df_ttrip_activity.loc[:,"trip_order_to"] = df_ttrip_activity.trip_order + 1
+    df_ttrip_activity.loc[:,"destination"] = df_ttrip_activity.merge(df_activities, 
+                                left_on=["person_id", "trip_order_to"], right_on=["person_id","activity_order"],
+                                how="left").geometry.values
+
+    df_ttrip_activity.loc[:,"distance"] = df_ttrip_activity.apply(lambda row: abs(row.origin.distance(row.destination)), axis=1)
+    print(df_ttrip_activity[["distance","trip_duration"]].describe())
+    print(df_ttrip_activity.traveling_mode.value_counts())
+    df_ttrip_activity.loc[:,"traveling_mode"] = df_ttrip_activity.apply(lambda row: walk_short_distance(row), axis=1)
+    print(df_ttrip_activity.traveling_mode.value_counts())
+
+    #drop unused columns
+    df_activities = df_activities[df_activities.columns.intersection(columns)]
+
+    df_ttrips = df_ttrip_activity[df_ttrip_activity.columns.intersection(columns_t)]
     #print(df_ttrips.columns)
 
     df_persons = df_persons[df_persons.columns.intersection(["person_id","trip_today","car_avail","driving_license"])]
@@ -188,6 +222,7 @@ def assign_activities_trips(args):
 
 def assign_activities_trips_par(df_persons, df_traveling, df_activities_hts, df_trips_hts):
     cpu_available = os.cpu_count()
+    
 
     df_chunks = np.array_split(df_persons.index, cpu_available)
     args = [[df_persons.iloc[df_chunk], df_traveling, df_activities_hts, df_trips_hts] for df_chunk in df_chunks]
@@ -208,63 +243,6 @@ def assign_activities_trips_par(df_persons, df_traveling, df_activities_hts, df_
     df_ttrips = pd.concat(t)
     return df_activities, df_persons, df_ttrips
 
-
-
-#unused - slower and does not impute times, still good for testing
-def assign_activities(df_persons, df_traveling, df_activities_hts, df_trips_hts):
-    columns = ["traveler_id","purpose","start_time","end_time", "activity_order","location_id"]
-    columns_t = ["traveler_id", "traveling_mode", "trip_order"]
-
-    activity_list = []
-    trip_list = []
-    for ix, df in tqdm(df_persons.iterrows()):
-        person_id = df.person_id
-        
-        df_person = df_traveling[df_traveling.person_id == person_id]
-        hts_id = df_person.hdm_source_id.values[0]
-        #print("HTS id:", hts_id)
-
-        hts_activities = df_activities_hts.loc[df_activities_hts.traveler_id == hts_id].sort_values(["activity_order"])
-        #print(df_activities_hts.traveler_id.unique())
-        hts_activities.loc[:,"traveler_id"] = person_id
-        #print(hts_activities.head())
-        hts_trips = df_trips_hts.loc[df_trips_hts.traveler_id == hts_id].sort_values(["trip_order"])
-        if(hts_trips.shape[0] == 0):
-            df_persons.at[ix,"trip_today"] = False
-        else:
-            df_persons.at[ix,"trip_today"] = True
-            hts_trips["traveler_id"] = person_id
-            trip_list.append(hts_trips)
-
-        
-        
-        #TODO add geometry for home and commute
-        home = df_person.residence_point.values[0]
-        home = Point(home.y, home.x)
-
-        #print(df_p.head())
-        commute = df_person.commute_point.values[0]
-        commute = Point(commute.y, commute.x)
-
-        purposes = hts_activities.purpose.values
-        hts_activities["geometry"] = [home if p == "home" else commute for p in purposes ]
-        hts_activities["location_id"] = [df_person.residence_id.values[0] if p == "home" else np.nan for p in purposes ]
-
-        #TODO change time variations
-        activity_list.append(hts_activities)
-        
-
-    if(len(trip_list)>0):
-        df_ttrips = pd.concat(trip_list,ignore_index=True)
-    else:
-        df_ttrips = pd.DataFrame(columns=columns_t)
-
-    df_ttrips.rename(columns={"traveler_id":"person_id"},inplace=True)
-
-    df_activities = pd.concat(activity_list, ignore_index=True)
-    df_activities.rename(columns={"traveler_id":"person_id"},inplace=True)
-    
-    return df_activities, df_persons, df_ttrips
 
     
 
@@ -370,5 +348,9 @@ def execute(context):
 
     print("People traveling today:")
     print(df_persons.trip_today.value_counts())
+
+    
+
+
 
     return df_persons, df_activities, df_ttrips
