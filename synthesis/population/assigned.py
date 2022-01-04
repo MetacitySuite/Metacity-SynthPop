@@ -371,4 +371,10 @@ def execute(context):
     print("People traveling today:")
     print(df_persons.trip_today.value_counts())
 
+    #TODO save to CSV files
+    df_persons.to_csv(context.config("output_path")+"/df_persons.csv")
+    df_activities.to_csv(context.config("output_path")+"/df_activities.csv")
+    df_ttrips.to_csv(context.config("output_path")+"/df_trips.csv")
+
+
     return df_persons, df_activities, df_ttrips

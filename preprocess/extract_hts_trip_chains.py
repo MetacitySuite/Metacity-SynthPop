@@ -19,6 +19,7 @@ This stage extracts proper activity chains and trips of HTS travelers for MATSim
 
 def configure(context):
     context.stage("preprocess.clean_travel_survey")
+    context.config("output_path")
 
     
 
@@ -48,8 +49,12 @@ def export_trip_chains(df_travelers, df_trips):
     activity_list = []
     trip_list = []
 
-    for traveler, day in tqdm(df_trips.groupby("traveler_id")):
+    day_trips = df_trips.groupby("traveler_id")
+    print("Day trips (grouped by travelers):",len(day_trips))
+
+    for i, day in tqdm(day_trips):
         day.sort_values(["trip_order"], inplace=True)
+        traveler = day["traveler_id"].values[0]
         df_activities_t = pd.DataFrame(columns=columns)
         df_trips_t = pd.DataFrame(columns=columns_t)
         destinations = []
@@ -103,19 +108,27 @@ def export_trip_chains(df_travelers, df_trips):
 
     df_activities = pd.concat(activity_list)
     df_ttrips = pd.concat(trip_list)
+    df_activities_ids = len(df_activities.traveler_id.unique())
+    df_ttrips_ids = len(df_ttrips.traveler_id.unique())
+    df_travelers_ids = len(df_travelers.traveler_id.unique())
+    print("Df_activities:", df_activities_ids, df_activities_ids/df_travelers_ids)
+    print("Df trips:", df_ttrips_ids, df_ttrips_ids/df_travelers_ids)
     #for travelers with no trips append home activity
-    no_trips = df_travelers[~df_travelers.traveler_id.isin(df_activities.traveler_id.unique())]
-    print("Assigned travelers:", len(df_activities.traveler_id.unique()))
-    print("No trip travelers:",len(no_trips))
-    print("Total:",len(df_activities.traveler_id.unique()) + len(no_trips), df_travelers.shape[0])
+    no_trip_travelers = set(df_travelers.traveler_id.unique()) - set(df_activities.traveler_id.unique()) 
+    no_trips = df_travelers[df_travelers.traveler_id.isin(no_trip_travelers)]
 
+    print("Assigned travelers:", len(df_activities.traveler_id.unique()))
     not_trip_activities = []
     for ix, traveler in no_trips.iterrows():
         not_trip_activities.append(create_home_activity(traveler.traveler_id, columns))
 
     not_trip_activities = pd.concat(not_trip_activities, ignore_index=True)
     df_activities = df_activities.append(not_trip_activities)
-    df_activities.reset_index(inplace=True)
+    df_activities.reset_index(drop = True, inplace=True)
+    print("Total:",len(df_activities.traveler_id.unique()),len(df_activities.traveler_id.unique())/ df_travelers_ids)
+    no_trip_hts = set(df_activities.traveler_id.unique()).difference(df_ttrips.traveler_id.unique())
+    print("No trip travelers:",len(no_trip_hts), len(no_trip_hts)/df_travelers_ids)
+    print("Subtraction:", set(df_activities.traveler_id.unique()).difference(set(df_travelers.traveler_id.unique())))
     return df_activities, df_ttrips
 
 
@@ -127,5 +140,10 @@ def execute(context):
     print("Exporting activity chains and trips from HTS:")
     activities, trips = export_trip_chains(df_travelers, df_trips) 
     assert len(df_travelers.traveler_id.unique()) == len(activities.traveler_id.unique())
+    #print("Unique person ids in trips, travelers and activities")
+    #print(len(df_trips.traveler_id.unique()), len(df_travelers.traveler_id.unique()))
+    #print(len(activities.traveler_id.unique()))
+    activities.to_csv(context.config("output_path")+"/hts_activities_extracted.csv")
+    trips.to_csv(context.config("output_path")+"/hts_trips_extracted.csv")
 
     return activities, trips
