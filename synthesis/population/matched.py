@@ -18,6 +18,12 @@ def remap_districts(context, df):
     df.columns = ['person_id', 'zone_id', 'sex', 'age', 'employment', 'age_class', 'district_name']
     return df
 
+def set_students(row):
+    if(row.age >= 6 and row.age < 15):
+        return "student"
+    
+    return row.employment
+
 def configure(context):
     #context.stage("synthesis.population.sampled")
     context.config("data_path")
@@ -58,16 +64,26 @@ def execute(context):
 
     df_source.employment = df_source.employment.map(employment_map)
     df_target.employment = df_target.employment.map(employment_map)
-
+    #all kids aged 6-14 are set as students
+    #TODO
+    print(df_target.employment.value_counts())
+    df_target.employment = df_target.apply(lambda row: set_students(row), axis=1)
+    print(df_target.employment.value_counts())
 
     #add district_name column for pairing
     df_source = df_source.merge(df_households, on='household_id')
     df_source = df_source.drop(['persons_number', 'car_number', 'bike_number'], axis = 1)
     df_target = df_target.merge(df_zones, on='zone_id')
     df_target = df_target.drop(['geometry', 'district_id'], axis = 1)
+
     
     #set districts in census by district mapping file - data sensitive edit (due to missing district representation in the travel survey)
     df_target = remap_districts(context, df_target)
+
+    #save to CSV
+    df_source.to_csv(context.config("output_path")+"/clean_hts_matched.csv")
+    df_target.to_csv(context.config("output_path")+"/clean_census_matched.csv")
+    
     
     synthesis.algorithms.hot_deck_matching.run(
         df_target, df_source,
