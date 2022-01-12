@@ -130,7 +130,6 @@ def execute(context):
             print("Assigned in zone:", ordered_candidates.shape[0], ordered_candidates.home_zone_id.unique()[0])
             print("Less travels in zone than people.")
 
-
         ordered_candidates.loc[:,"person_id"] = df["person_id"].values
         results.append(ordered_candidates)
       

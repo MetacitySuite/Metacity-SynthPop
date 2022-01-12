@@ -13,7 +13,7 @@ import os
 #import seaborn as sns
 #import matplotlib.pyplot as plt
 
-WALKING_DIST = 150
+WALKING_DIST = 50 #150
 
 
 """
