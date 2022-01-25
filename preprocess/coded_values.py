@@ -13,7 +13,7 @@ def execute(context):
     travel_survey_values_dict['purpose_list'] = ['home', 'work', 'education', 'shop', 'leisure', 'other', 'other', 'other', 'shop']
     
     travel_survey_values_dict['mode_list_cz'] = ['auto-d', 'auto-p', 'bus', 'kolo', 'MHD', 'ostatní', 'pěšky', 'vlak']
-    travel_survey_values_dict['mode_list'] = ['car', 'car_passenger', 'pt', 'bike', 'pt', 'other', 'walk', 'pt']
+    travel_survey_values_dict['mode_list'] = ['car', 'ride', 'pt', 'bike', 'pt', 'other', 'walk', 'pt']
 
     travel_survey_values_dict['employed_list_cz'] = ['zaměstnanec, zaměstnavatel, samostatně činný či pomáhající', 'pracující důchodce']
     travel_survey_values_dict['employed_list'] = ['employee, employer, self-employed, or helping', 'working retiree']

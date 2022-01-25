@@ -13,7 +13,7 @@ import os
 #import seaborn as sns
 #import matplotlib.pyplot as plt
 
-WALKING_DIST = 50 #150
+WALKING_DIST = 80 #150
 
 
 """
@@ -316,6 +316,7 @@ def execute(context):
     
     df_persons.drop(["index"],axis=1, inplace=True) 
     df_activities.drop(["index"],axis=1, inplace=True) 
+
 
     print("PERSONS:", df_persons.shape[0])
     print(df_persons.info())
