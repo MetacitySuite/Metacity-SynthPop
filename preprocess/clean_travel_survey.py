@@ -95,7 +95,6 @@ def clean_traveler_data(context, df):
 Validate activity chain. Remove travelers who do not have at least one "home" origin and/or destination.
 Check if the trips done by a person are connected.
 """
-
 def clean_activity_chain(df):
     primary = ['home', 'work', 'education']
 
@@ -129,6 +128,45 @@ def clean_activity_chain(df):
 
     df = df.loc[~df['traveler_id'].isin(deleted_travelers)]
     return df
+
+def delete_incomplete_chains(df):
+    #check if travelers have meaningful connected trip order
+    deleted_travelers = []
+    primary_activities = ["home", 'work', "education"]
+    variable_activities = ['shop', 'leisure', 'other']
+    purposes = primary_activities + variable_activities
+
+    day_trips = df.groupby("traveler_id")
+   
+    for i, day in tqdm(day_trips):
+        day.sort_values(["trip_order"], inplace=True)
+        traveler = day["traveler_id"].values[0]
+
+        destinations = []
+        activities = []
+        last_activity = np.nan
+        day_started = False
+        
+        for ix, trip in day.iterrows():
+            if((trip.origin_purpose in purposes) and (trip.origin_purpose != last_activity)):
+                day_started = True
+                activities.append(trip.origin_purpose)
+                last_activity = trip.origin_purpose
+            if(day_started and trip.destination_purpose in purposes and ((len(activities) == 0) or (trip.destination_purpose !=activities[-1]))):
+                destinations.append(trip.destination_purpose)
+            
+        
+        if(len(destinations)>0 and len(set(activities)) > 1):
+            if(destinations[-1] != activities[-1]):
+                activities.append(activities[0])
+
+            if (activities[-1] != activities[0]):
+                deleted_travelers.append(traveler)
+
+    df = df.loc[~df['traveler_id'].isin(deleted_travelers)]
+    return df
+            
+
 
 def calculate_row_percentage(df, column, value, sumcolumn = None):
     if(sumcolumn != None):
@@ -227,6 +265,7 @@ def clean_trip_data(context, df):
     
     #clean and connect activity chains, purge nonsense
     df = clean_activity_chain(df)
+    df = delete_incomplete_chains(df)
 
     #convert departure and arrival time columns to seconds
     df = calculate_time_in_seconds(df)
@@ -237,7 +276,6 @@ def clean_trip_data(context, df):
 """
 Reconnect all three tables after cleaning them separately.
 """
-
 def connect_tables(df_hh, df_travelers, df_trips):
     travelers_with_trips = df_trips['traveler_id'].unique()
     travelers_with_trips_count = len(travelers_with_trips)
@@ -363,6 +401,7 @@ def execute(context):
     #print(df_trips.info())
 
     df_trips = fill_traveling_mode(df_trips)
-    #print(df_trips.info())
+    print(df_trips.info())
+    print(df_travelers.info())
 
     return df_hh, df_travelers, df_trips
