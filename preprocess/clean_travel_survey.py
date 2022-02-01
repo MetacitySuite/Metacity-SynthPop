@@ -531,6 +531,7 @@ def execute(context):
     #print(df_trips.info())
 
     print(df_trips.info())
+    df_trips.traveling_mode.replace("ride","car_passenger", inplace=True)
     #df_trips = fill_traveling_mode(df_trips)
     #print(df_trips.info())
     print(df_travelers.info())
