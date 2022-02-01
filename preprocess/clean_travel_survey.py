@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import re
+import random
 from tqdm import tqdm
 
 """
@@ -40,6 +41,25 @@ def fast_mode(df, key_cols, value_col):
               .to_frame('counts').reset_index() 
               .sort_values('counts', ascending=False) 
               .drop_duplicates(subset=key_cols)).drop(columns='counts')
+
+# Defined average speeds for traveling mode - imputing purposes
+max_walk_speed = 4.8
+min_walk_speed = 1.5
+
+max_car_speed = 45.
+min_car_speed = 15.
+
+max_pt_speed = 45.
+min_pt_speed = 10.
+
+max_ride_speed = 45.
+min_ride_speed = 15.
+
+min_bike_speed = 3.5
+max_bike_speed = 14.
+mode_speeds = [["walk", min_walk_speed, max_walk_speed],["car", min_car_speed, max_car_speed],['pt', min_pt_speed, max_pt_speed],['ride', min_ride_speed, max_ride_speed],['bike', min_bike_speed, max_bike_speed]]
+    
+
 
 
 def age_class_to_interval(age_class):
@@ -105,7 +125,7 @@ def clean_activity_chain(df):
     for i, row in pbar:
         pbar.set_description("Checking trip connectivity for each traveler")
         traveler_id = row['traveler_id']
-        trip_count = row['trips']
+        trip_count = int(row['trips'])
         df_daily_plan = df.loc[(df['traveler_id'] == traveler_id)]
     
         #check if trips are connected
@@ -237,24 +257,90 @@ Fills NA in origin and destination code based on either one of those (expect tri
 For now remove travelers leaving and/or entering chosen area during the day.
 Validates activity chain.
 """
+
+def get_trip_duration(row):
+    departure = row.departure_h*3600
+    departure += row.departure_m*60
+    
+    arrival = row.arrival_h*3600
+    arrival += row.arrival_m*60
+    
+    duration = arrival - departure
+    
+    if arrival < departure:
+        duration = (24*3600 - departure) + arrival
+        
+    return duration
+        
+def get_trip_speed(row):
+    duration_s = row.duration
+    duration_h = duration_s/3600
+    
+    beeline = row.beeline
+    
+    if(beeline != np.nan and row.beeline_valid == True):
+        if(duration_h > 0):
+            speed = beeline/duration_h
+        else:
+            speed = np.nan
+        
+    else: speed = np.nan
+    return speed
+
+def shift_beeline(row, min_speed, max_speed, mode):
+    if(row.traveling_mode != mode):
+        return row.beeline, row.speed
+    
+    if(row.speed > max_speed):
+        new_beeline = (row.duration/3600)
+        new_beeline *= max_speed
+        new_speed = max_speed
+        return new_beeline, new_speed
+    
+    if(row.speed < min_speed):
+        new_beeline = (row.duration/3600)
+        new_beeline *= min_speed
+        new_speed = min_speed
+        return new_beeline, new_speed
+    
+    return row.beeline, row.speed
+
+def impute_beeline(row, mode, avg_speed, speed_std):
+    if(row.traveling_mode != mode):
+        return row.beeline, row.speed
+    
+    if(row.beeline == np.nan or row.beeline_valid == False):
+        #impute beeline based on valid avg speed
+        duration = row.duration/3600
+        new_speed = avg_speed+random.uniform(-speed_std/2, speed_std/2)
+        new_beeline = duration*new_speed
+        
+        return new_beeline, new_speed
+        
+    return row.beeline, row.speed
+
+
 def clean_trip_data(context, df):
     #remap values
     _, ts_values_dict = context.stage("preprocess.coded_values")
     df.loc[:, 'origin_purpose'] = df['origin_purpose'].replace(ts_values_dict["purpose_list_cz"], ts_values_dict["purpose_list"])
     df.loc[:, 'destination_purpose'] = df['destination_purpose'].replace(ts_values_dict["purpose_list_cz"], ts_values_dict["purpose_list"])
     df.loc[:, 'last_trip'] = df['last_trip'].replace(['ano', 'ne'], [True, False])
+    df.loc[:, 'beeline_valid'] = df['beeline_valid'].replace(['ano', 'ne'], [True, False])
     df.loc[:, 'traveling_mode'] = df['traveling_mode'].replace(ts_values_dict["mode_list_cz"], ts_values_dict["mode_list"])
+
 
     #drop unidentified travelers
     df = df.dropna(subset=['traveler_id'])
     df.loc[:, 'traveler_id'] = df['traveler_id'].astype(int)
-
+    print(df.shape)
     #drop travelers with missing mandatory columns
     removed_travelers = df.loc[ (df['departure_h'].isna()) | (df['departure_m'].isna()) |
                                 (df['arrival_h'].isna()) | (df['arrival_m'].isna()) |
                                 (df['origin_purpose'].isna()) | (df['destination_purpose'].isna()) |
                                 (df['traveling_mode'].isna())]['traveler_id'].unique()
     df = df.loc[~df['traveler_id'].isin(removed_travelers)]
+    print(df.shape)
 
     #remove travelers who do not have any destination at home
     travelers_with_home = df.loc[ (df['origin_purpose'] == 'home') | (df['destination_purpose'] == 'home') ]['traveler_id'].unique()
@@ -262,6 +348,50 @@ def clean_trip_data(context, df):
 
     #filter and clean trips outside the area code
     df = filter_trips_by_area(context, df)
+
+    #impute duration
+    df['duration'] = df.apply(lambda row: get_trip_duration(row), axis=1)
+    df['duration_m'] = df.duration/60.
+
+    #impute speed
+    df['speed'] = df.apply(lambda row: get_trip_speed(row), axis=1)
+
+    #replace unused travel modes
+    df.loc[:,'traveling_mode'] = df.traveling_mode.fillna("pt")
+    df.loc[:,'traveling_mode'] = df.replace("other","pt")
+
+    df[df.traveling_mode == 'walk'] = df[df.traveling_mode == 'walk'][df.duration_m < 600] 
+    df[df.traveling_mode == 'pt'] = df[df.traveling_mode == 'pt'][df.duration_m < 300] # deleting outliers
+    df[df.traveling_mode == 'pt'] = df[df.traveling_mode == 'pt'][df.beeline < 150] # deleting outliers
+    df[df.traveling_mode == 'bike'] = df[df.traveling_mode == 'bike'][df.beeline < 15] # deleting outliers
+    df[df.traveling_mode == 'car'] = df[df.traveling_mode == 'car'][df.beeline < 200] # deleting outliers
+    df.loc[:,'traveling_mode'] = df.traveling_mode.fillna("pt")    
+
+    for mode, min_speed, max_speed in mode_speeds: 
+        res = df.apply(lambda row: shift_beeline(row,min_speed,max_speed,mode), axis=1)
+        df['beeline'] = [a for a,b in res]
+        df['speed'] = [b for a,b in res]
+
+    avg_speeds = []
+    df['speed'] = df.apply(lambda row: get_trip_speed(row), axis=1)
+
+    for mode in df.traveling_mode.unique():
+        avg_speed = df[df.traveling_mode == mode][df.beeline_valid == True].speed.mean()
+        std_speed = df[df.traveling_mode == mode][df.beeline_valid == True].speed.std()
+        print("Average speed - ",mode,"(+/-):", avg_speed, std_speed)
+        avg_speeds.append((mode, avg_speed, std_speed))
+
+    for mode, avg_speed, std_speed in avg_speeds: 
+        res = df.apply(lambda row: impute_beeline(row, mode, avg_speed, std_speed), axis=1)
+        df['beeline'] = [a for a,_ in res]
+        df['speed'] = [b for _,b in res]
+
+    
+
+    df['speed'] = df.apply(lambda row: get_trip_speed(row), axis=1)
+    print("Trips:",df.shape)
+    print(df.info())
+    print(df.describe())
     
     #clean and connect activity chains, purge nonsense
     df = clean_activity_chain(df)
@@ -270,7 +400,7 @@ def clean_trip_data(context, df):
     #convert departure and arrival time columns to seconds
     df = calculate_time_in_seconds(df)
     df = df[['traveler_id', 'trip_order', 'origin_purpose', 'destination_purpose', 'departure_time', 'arrival_time',
-                'traveling_mode', 'last_trip', 'beeline', 'origin_code', 'destination_code']]
+                'traveling_mode', 'last_trip', 'beeline', 'origin_code', 'destination_code', 'duration']]
     return df
 
 """
@@ -380,12 +510,12 @@ def execute(context):
     df_trips = df_trips[['P_ID', 'T_ord', 
                         'T_O_time_hh', 'T_O_time_min', 'T_D_time_hh', 'T_D_time_min',
                         'T_O_purpose', 'T_D_purpose', 'T_last_trip',
-                        'T_dist_dir','T_mainmode', 'T_O_orp_code', 'T_D_orp_code']]
+                        'T_dist_dir','T_mainmode', 'T_O_orp_code', 'T_D_orp_code', 'T_dist_valid']]
     
     df_trips.columns = ['traveler_id', 'trip_order', 
                         'departure_h', 'departure_m', 'arrival_h', 'arrival_m',
                         'origin_purpose', 'destination_purpose', 'last_trip',
-                        'beeline', 'traveling_mode', 'origin_code', 'destination_code']
+                        'beeline', 'traveling_mode', 'origin_code', 'destination_code', 'beeline_valid']
 
     df_hh = clean_household_data(context, df_hh)
     df_travelers = clean_traveler_data(context, df_travelers)
@@ -400,8 +530,9 @@ def execute(context):
     #traveling mode: replace other
     #print(df_trips.info())
 
-    df_trips = fill_traveling_mode(df_trips)
     print(df_trips.info())
+    #df_trips = fill_traveling_mode(df_trips)
+    #print(df_trips.info())
     print(df_travelers.info())
 
     return df_hh, df_travelers, df_trips
