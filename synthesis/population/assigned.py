@@ -13,7 +13,7 @@ import os
 #import seaborn as sns
 #import matplotlib.pyplot as plt
 
-WALKING_DIST = 80 #150
+WALKING_DIST = 50 #150
 
 
 """
@@ -48,9 +48,8 @@ def configure(context):
 def export_shp(df, output_shp):
     travels = gpd.GeoDataFrame()
 
-    travels.loc[:,"geometry"] = df.geometry.apply(lambda point: Point(-point.x, -point.y))
-    #travels.loc[:,"district_name"] = df.district_name.values
-    travels.loc[:,"activities"] = df.count.values
+    travels["geometry"] = df.geometry.apply(lambda point: Point(-point.x, -point.y))
+    travels["activities"] = df.count.values
 
     travels[travels.travels].to_file(output_shp)
     print("Saved to:", output_shp)

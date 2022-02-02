@@ -180,9 +180,13 @@ def delete_incomplete_chains(df):
             if(destinations[-1] != activities[-1]):
                 activities.append(activities[0])
 
-            if (activities[-1] != activities[0]):
-                deleted_travelers.append(traveler)
 
+            if (activities[-1] != activities[0]): #activity chain does not loop
+                deleted_travelers.append(traveler)
+                #print("Incomplete activity chain:", traveler)
+                #print(day[['trip_order','origin_purpose','destination_purpose']])
+
+    print("Deleted travelers (incomplete chains):", len(deleted_travelers))
     df = df.loc[~df['traveler_id'].isin(deleted_travelers)]
     return df
             
@@ -319,6 +323,32 @@ def impute_beeline(row, mode, avg_speed, speed_std):
         
     return row.beeline, row.speed
 
+def delete_mode_outliers(df):
+    #replace unused travel modes
+    df.loc[:,'traveling_mode'] = df.traveling_mode.replace("other","pt")
+    df.loc[:,'traveling_mode'] = df.traveling_mode.fillna("pt") 
+    print("Trips before outlier det.:", df.shape[0])  
+
+   
+    mode_walk = df[df.traveling_mode == 'walk']
+    mode_ride = df[df.traveling_mode == 'ride']
+    mode_bike = df[df.traveling_mode == 'bike']
+    mode_car = df[df.traveling_mode == 'car']
+    mode_pt = df[df.traveling_mode == 'pt']
+    print(pd.concat([mode_walk,mode_bike,mode_car, mode_ride, mode_pt]).shape[0])
+
+    #Delete outliers
+    mode_walk.drop(mode_walk[mode_walk['duration_m'] > 600].index, inplace=True)
+    pt_drop_beeline = mode_pt[mode_pt['beeline'] > 100]
+    pt_drop_duration= mode_pt[mode_pt['duration_m'] > 300]
+    mode_pt.drop(pt_drop_duration.index, inplace=True)
+    mode_pt.drop(pt_drop_beeline.index, inplace=True)
+    mode_bike.drop(mode_bike[mode_bike['beeline'] > 15].index, inplace=True)
+    mode_car.drop(mode_car[mode_car['beeline'] > 150].index, inplace=True)
+
+    df = pd.concat([mode_walk,mode_bike,mode_car, mode_ride, mode_pt])
+    return df
+
 
 def clean_trip_data(context, df):
     #remap values
@@ -356,17 +386,10 @@ def clean_trip_data(context, df):
     #impute speed
     df['speed'] = df.apply(lambda row: get_trip_speed(row), axis=1)
 
-    #replace unused travel modes
-    #df.loc[:,'traveling_mode'] = df.traveling_mode.fillna("pt")
-    df.loc[:,'traveling_mode'] = df.replace("other","pt")
-
-    #Outliers
-    df[df.traveling_mode == 'walk'] = df[df.traveling_mode == 'walk'][df.duration_m < 600] 
-    df[df.traveling_mode == 'pt'] = df[df.traveling_mode == 'pt'][df.duration_m < 300] # deleting outliers
-    df[df.traveling_mode == 'pt'] = df[df.traveling_mode == 'pt'][df.beeline < 100] # deleting outliers
-    df[df.traveling_mode == 'bike'] = df[df.traveling_mode == 'bike'][df.beeline < 15] # deleting outliers
-    df[df.traveling_mode == 'car'] = df[df.traveling_mode == 'car'][df.beeline < 150] # deleting outliers
-    df.loc[:,'traveling_mode'] = df.traveling_mode.fillna("pt")    
+    print("Trips before outlier det.:", df.shape[0])
+    df = delete_mode_outliers(df)
+    print("Trips after outlier det.:", df.shape[0])
+    
 
     for mode, min_speed, max_speed in mode_speeds: 
         res = df.apply(lambda row: shift_beeline(row,min_speed,max_speed,mode), axis=1)
@@ -387,21 +410,16 @@ def clean_trip_data(context, df):
         df['beeline'] = [a for a,_ in res]
         df['speed'] = [b for _,b in res]
     
-    print("Trips after beeline imputation")
-    print(df.info())
-    
-
 
     #clean and connect activity chains, purge nonsense
     df = clean_activity_chain(df)
     df = delete_incomplete_chains(df)
 
-    print("Trips after cleaning:")
-    print(df.info())
-    for mode in df.traveling_mode.unique():
-        print(mode)
-        print(df[df.traveling_mode == mode].describe())
-
+    #print("Trips after cleaning:")
+    #print(df.info())
+    #for mode in df.traveling_mode.unique():
+    #    print(mode)
+    #    print(df[df.traveling_mode == mode].describe())
 
     #convert departure and arrival time columns to seconds
     df = calculate_time_in_seconds(df)
@@ -461,27 +479,6 @@ def connect_tables(df_hh, df_travelers, df_trips):
 
     return df_hh, df_travelers, df_trips
 
-def return_trip_duration(arrival, departure):
-    if(arrival < departure):
-        midnight = 24*60*60
-        return abs(arrival + (midnight - departure))
-        
-    return abs(arrival- departure)
-
-def fill_traveling_mode(df_trips):
-    print("Trips:", len(df_trips))
-    df_trips.loc[:,"duration"] = df_trips.apply(lambda row: return_trip_duration(row.arrival_time, row.departure_time)/60, axis=1)
-    df_trips.loc[:,"speed"] = (df_trips.beeline / (df_trips.duration/60))
-    df_trips.loc[:,"speed"] = df_trips.speed.fillna(df_trips.speed.mean())
-    df_trips.loc[:,"traveling_mode"] = df_trips.traveling_mode.replace("other", np.nan)
-    print("Unique speeds",len(df_trips.speed.unique()))
-
-    df_trips = df_trips.groupby(["speed"]).apply(lambda x: x.fillna(x.mode().iloc[0])).sort_values('traveler_id').reset_index(drop=True)
-    print(df_trips[df_trips.traveling_mode.isna()])
-    df_trips.loc[:,"traveling_mode"] = df_trips.traveling_mode.fillna("pt")
-    print(df_trips[df_trips.traveling_mode.isna()])
-    df_trips.drop(["duration","speed"], axis=1, inplace=True)
-    return df_trips
 
 def configure(context):
     context.config("data_path")
@@ -534,8 +531,6 @@ def execute(context):
     df_hh, df_travelers, df_trips = connect_tables(df_hh, df_travelers, df_trips)
     df_trips.traveling_mode.replace("ride","car_passenger", inplace=True)
     print(df_trips.info())
-    #df_trips = fill_traveling_mode(df_trips)
-    #print(df_trips.info())
     print(df_travelers.info())
 
     return df_hh, df_travelers, df_trips
