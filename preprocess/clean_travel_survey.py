@@ -357,20 +357,21 @@ def clean_trip_data(context, df):
     df['speed'] = df.apply(lambda row: get_trip_speed(row), axis=1)
 
     #replace unused travel modes
-    df.loc[:,'traveling_mode'] = df.traveling_mode.fillna("pt")
+    #df.loc[:,'traveling_mode'] = df.traveling_mode.fillna("pt")
     df.loc[:,'traveling_mode'] = df.replace("other","pt")
 
+    #Outliers
     df[df.traveling_mode == 'walk'] = df[df.traveling_mode == 'walk'][df.duration_m < 600] 
     df[df.traveling_mode == 'pt'] = df[df.traveling_mode == 'pt'][df.duration_m < 300] # deleting outliers
-    df[df.traveling_mode == 'pt'] = df[df.traveling_mode == 'pt'][df.beeline < 150] # deleting outliers
+    df[df.traveling_mode == 'pt'] = df[df.traveling_mode == 'pt'][df.beeline < 100] # deleting outliers
     df[df.traveling_mode == 'bike'] = df[df.traveling_mode == 'bike'][df.beeline < 15] # deleting outliers
-    df[df.traveling_mode == 'car'] = df[df.traveling_mode == 'car'][df.beeline < 200] # deleting outliers
+    df[df.traveling_mode == 'car'] = df[df.traveling_mode == 'car'][df.beeline < 150] # deleting outliers
     df.loc[:,'traveling_mode'] = df.traveling_mode.fillna("pt")    
 
     for mode, min_speed, max_speed in mode_speeds: 
         res = df.apply(lambda row: shift_beeline(row,min_speed,max_speed,mode), axis=1)
-        df['beeline'] = [a for a,b in res]
-        df['speed'] = [b for a,b in res]
+        df['beeline'] = [a for a,_ in res]
+        df['speed'] = [b for _,b in res]
 
     avg_speeds = []
     df['speed'] = df.apply(lambda row: get_trip_speed(row), axis=1)
@@ -385,17 +386,22 @@ def clean_trip_data(context, df):
         res = df.apply(lambda row: impute_beeline(row, mode, avg_speed, std_speed), axis=1)
         df['beeline'] = [a for a,_ in res]
         df['speed'] = [b for _,b in res]
-
     
-
-    df['speed'] = df.apply(lambda row: get_trip_speed(row), axis=1)
-    print("Trips:",df.shape)
+    print("Trips after beeline imputation")
     print(df.info())
-    print(df.describe())
     
+
+
     #clean and connect activity chains, purge nonsense
     df = clean_activity_chain(df)
     df = delete_incomplete_chains(df)
+
+    print("Trips after cleaning:")
+    print(df.info())
+    for mode in df.traveling_mode.unique():
+        print(mode)
+        print(df[df.traveling_mode == mode].describe())
+
 
     #convert departure and arrival time columns to seconds
     df = calculate_time_in_seconds(df)
@@ -526,12 +532,8 @@ def execute(context):
     
     #re-connect all data
     df_hh, df_travelers, df_trips = connect_tables(df_hh, df_travelers, df_trips)
-
-    #traveling mode: replace other
-    #print(df_trips.info())
-
-    print(df_trips.info())
     df_trips.traveling_mode.replace("ride","car_passenger", inplace=True)
+    print(df_trips.info())
     #df_trips = fill_traveling_mode(df_trips)
     #print(df_trips.info())
     print(df_travelers.info())

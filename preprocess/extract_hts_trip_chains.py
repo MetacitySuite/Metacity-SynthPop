@@ -135,8 +135,8 @@ def export_trip_chains(df_travelers, df_trips):
     columns = ["traveler_id","purpose","start_time","end_time", "activity_order"]
     columns_t = ["traveler_id", "traveling_mode", "trip_order"]
     primary_activities = ["home", 'work', "education"]
-    variable_activities = ['shop', 'leisure', 'other']
-    purposes = primary_activities + variable_activities
+    #variable_activities = ['shop', 'leisure', 'other']
+    purposes = primary_activities# + variable_activities
 
     df_activities = pd.DataFrame(columns=columns)
     df_ttrips = pd.DataFrame(columns=columns_t)
@@ -241,7 +241,7 @@ out: activities, trips
 def execute(context):
     _, df_travelers, df_trips = context.stage("preprocess.clean_travel_survey")
     print("Exporting activity chains and trips from HTS:")
-    activities, trips = export_trip_chains(df_travelers, df_trips) 
+    activities, trips = export_trip_chains_primary(df_travelers, df_trips) 
     assert len(df_travelers.traveler_id.unique()) == len(activities.traveler_id.unique())
     #print("Unique person ids in trips, travelers and activities")
     #print(len(df_trips.traveler_id.unique()), len(df_travelers.traveler_id.unique()))
