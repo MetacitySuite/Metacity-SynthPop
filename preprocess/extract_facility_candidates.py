@@ -83,7 +83,7 @@ def extract_facility_candidates(f_kk, df_workplaces, sample_seed, zones):
 
 def execute(context):
     df_zones = context.stage("preprocess.zones")
-    df_workplaces, df_schools, df_shops, df_leisure = context.stage("preprocess.extract_amenities")
+    df_workplaces, df_schools, df_shops, df_leisure, df_other = context.stage("preprocess.extract_amenities")
     sample_seed = context.config("seed")
 
     f_kk_work, df_employed, f_kk_edu, df_students = context.stage("preprocess.extract_commute_trips")

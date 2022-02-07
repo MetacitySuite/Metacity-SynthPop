@@ -24,9 +24,19 @@ def configure(context):
     context.config("poi_tags_education")
     context.config("poi_tags_shop")
     context.config("poi_tags_leisure")
+    context.config("poi_tags_other")
     context.config("project_directory")
 
     context.stage("preprocess.zones")
+
+def extract_pois(amenity, df_commercial_poi, df_amenity_poi, df_leisure_poi, df_zones):
+    commercial = df_commercial_poi[df_commercial_poi["description"].isin(amenity)]
+    amenities = df_amenity_poi[df_amenity_poi["description"].isin(amenity)]
+    leisures = df_leisure_poi[df_leisure_poi["description"].isin(amenity)]
+    df_pois = pd.concat([commercial, amenities, leisures], ignore_index=True)
+    df = gpd.sjoin(df_pois, df_zones, op = "within", how="left").drop(columns=["index_right"])
+    return df
+
 
 def execute(context):
     epsg = context.config("epsg")
@@ -43,49 +53,20 @@ def execute(context):
     df_leisure_poi = process_poi_shapefile(shape_file_leisure, ["ID", "DRUH_TXT", "TYP_TXT", "geometry"], epsg)
 
     #define point of interest types and load tags
-    poi_types = ["work", "education", "shop", "leisure"]
+    poi_types = ["work", "education", "shop", "leisure","other"]
     amenity = {}
 
-    #load jisons
+    #load jsons
     for pt in poi_types:
         filename = "poi_tags_" + pt
         file = open(context.config("project_directory") +"tags/"+ context.config(filename), encoding='utf-8')
         amenity[pt] = json.load(file)
 
     #extract amenitites coordinates and spatial join with zones
-    #TODO: refactor
+    results = []
 
-    #commercial poi
-    df_shop_poi = df_commercial_poi[df_commercial_poi["type"].isin(amenity['shop'])]
-    df_shops = gpd.sjoin(df_shop_poi, df_zones, op = "within", how="left").drop(columns=["index_right"])
-
-    #print(amenity['work'])
-    df_work_poi = df_commercial_poi[df_commercial_poi["type"].isin(amenity['work'])]
-    #print(df_work_poi.shape[0])
-
-    df_workplaces = gpd.sjoin(df_work_poi, df_zones, op = "within", how="left").drop(columns=["index_right"])
-    
-
-    #amenity poi
-    df_education_poi = df_amenity_poi[df_amenity_poi["type"].isin(amenity['education'])]
-    df_schools = gpd.sjoin(df_education_poi, df_zones, op = "within", how="left").drop(columns=["index_right"])
-
-    df_workplaces_am = df_amenity_poi[df_amenity_poi["type"].isin(amenity['work'])]
-    df_workplaces_am = gpd.sjoin(df_workplaces_am, df_zones, op = "within", how="left").drop(columns=["index_right"])
-
-    df_leisure = df_amenity_poi[df_amenity_poi["type"].isin(amenity['leisure'])]
-    df_leisure = gpd.sjoin(df_leisure, df_zones, op = "within", how="left").drop(columns=["index_right"])
-    
-    #recreation poi
-    df_leisure_re = df_leisure_poi[df_leisure_poi["type"].isin(amenity['leisure'])]
-    df_leisure_re = gpd.sjoin(df_leisure_re, df_zones, op = "within", how="left").drop(columns=["index_right"])
-
-    df_workplaces_re = df_leisure_poi[df_leisure_poi["type"].isin(amenity['work'])]
-    df_workplaces_re = gpd.sjoin(df_workplaces_re, df_zones, op = "within", how="left").drop(columns=["index_right"])
-   
-    #concatenate poi
-    df_workplaces = pd.concat([df_workplaces, df_workplaces_am, df_workplaces_re])
-    df_leisure = pd.concat([df_leisure, df_leisure_re])
+    for activity in poi_types:
+        results.append(extract_pois(amenity[activity], df_commercial_poi, df_amenity_poi, df_leisure_poi, df_zones))
 
 
-    return df_workplaces, df_schools, df_shops, df_leisure
+    return results #as in: df_workplaces, df_schools, df_shops, df_leisure, df_other

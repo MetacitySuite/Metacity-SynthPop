@@ -117,7 +117,7 @@ def extract_trip_counts(k, demand_k, pi_k, other_dests):
 def execute(context):
     df_matched = context.stage("synthesis.population.matched")
     _, _, df_trips = context.stage("preprocess.clean_travel_survey")
-    df_workplaces, df_schools, df_shops, df_leisure = context.stage("preprocess.extract_amenities")
+    df_workplaces, df_schools, df_shops, df_leisure, df_other = context.stage("preprocess.extract_amenities")
     pi_kk, pi_kk_edu = context.stage("preprocess.clean_commute_prob")
 
     df_zones = context.stage("preprocess.zones")
