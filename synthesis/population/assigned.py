@@ -1,14 +1,10 @@
-from typing import ValuesView
-from unicodedata import normalize
-from numpy.random.mtrand import hypergeometric, seed
 import pandas as pd
 import numpy as np
 import geopandas as gpd
 from shapely import geometry
 from tqdm import tqdm
-from pyproj import Geod
-from shapely.geometry import LineString, Point, point
-from multiprocessing import Pool, cpu_count
+from shapely.geometry import LineString, Point
+from multiprocessing import Pool
 import os
 #import seaborn as sns
 #import matplotlib.pyplot as plt
@@ -34,14 +30,10 @@ def configure(context):
     context.stage("preprocess.home")
     context.stage("synthesis.population.matched")
     context.stage("synthesis.locations.census_home")
-    context.stage("synthesis.locations.matched_work")
-    context.stage("synthesis.locations.matched_education")
+    context.stage("synthesis.population.spatial.primary.locations")
     context.stage("preprocess.extract_hts_trip_chains")
-
     context.stage("preprocess.zones")
     
-
-
 """
 
 """
@@ -81,10 +73,10 @@ def return_location(df_row):
 def return_trip_duration(row, next_row):
     ixr, row = row
     ixn, next_row = next_row
-    #print(next_row)
+
     if(row.person_id != next_row.person_id):
         return 0
-    #print(row.person_id, next_row.person_id, next_row.level_0)
+
     if(next_row.start_time == np.nan or row.end_time == np.nan):
         return np.nan
     
@@ -103,8 +95,6 @@ def return_time_variation(df_row, column, prev_row=None, df = None):
     
     if(np.isnan(df_row.loc[column])):
         return np.nan
-
-    #print(column, df_row.loc[column], type(df_row.loc[column]))
 
     duration = df_row.trip_duration
     last_duration = prev_row.trip_duration
@@ -156,18 +146,15 @@ def assign_activities_trips(args):
     del(merged)
 
     #impute geometry
-    #print("Imputing geometry")
     locations = df_activities.merge(df_traveling[["person_id","residence_id","commute_point","residence_point"]],
                                     left_on="person_id", right_on="person_id", how="left")
 
     df_activities.loc[:, "geometry"] = locations.apply(lambda row: return_geometry_point(row),axis=1)
     
     #impute location_id
-    #print("Imputing location id")
     df_activities.loc[:, "location_id"] = locations.apply(lambda row: return_location(row),axis=1)
     
     #impute start and end time variation
-    #print("Imputing time")
     df_activities.sort_values(["person_id","activity_order"],inplace=True)
     df_activities.reset_index(inplace=True)
     df_activities.loc[:,"trip_duration"] = [return_trip_duration(row, next_row) 
@@ -175,15 +162,11 @@ def assign_activities_trips(args):
 
     df_activities.loc[:, "start_time"] = [return_time_variation(row, "start_time", prev_row, df_activities)for row, prev_row in zip(df_activities.iterrows(),df_activities.shift(1).iterrows())]
     df_activities.loc[:, "end_time"] = [return_time_variation(row, "end_time", prev_row, df_activities)for row, prev_row in zip(df_activities.iterrows(),df_activities.shift(1).iterrows())]
-    #print(df_activities[["person_id","purpose","start_time","end_time","trip_duration","activity_order"]].head(20))
-
-    
 
     #prepare trips
     df_ttrips = df_persons.merge(df_trips_hts,
                                     left_on="traveler_id", right_on="traveler_id", how="inner")
 
-    # TODO merge with activities and change travel mode if distance is too short
     df_ttrip_activity = df_ttrips
     df_ttrip_activity.loc[:,"origin"] = df_ttrip_activity.merge(df_activities, 
                                 left_on=["person_id", "trip_order"], right_on=["person_id","activity_order"],
@@ -207,14 +190,8 @@ def assign_activities_trips(args):
     df_activities = df_activities[df_activities.columns.intersection(columns)]
 
     df_ttrips = df_ttrip_activity[df_ttrip_activity.columns.intersection(columns_t)]
-    #print(df_ttrips.columns)
 
     df_persons = df_persons[df_persons.columns.intersection(["person_id","trip_today","car_avail","driving_license"])]
-    #print(df_persons.columns)
-
-    #print(df_ttrips.traveling_mode.unique())
-    #TODO change if child
-    #df_ttrips.traveling_mode = df_ttrips.traveling_mode.replace("car-passenger","car")
 
     return df_activities, df_persons, df_ttrips
 
@@ -222,7 +199,6 @@ def assign_activities_trips(args):
 def assign_activities_trips_par(df_persons, df_traveling, df_activities_hts, df_trips_hts):
     cpu_available = os.cpu_count()
     
-
     df_chunks = np.array_split(df_persons.index, cpu_available)
     args = [[df_persons.iloc[df_chunk], df_traveling, df_activities_hts, df_trips_hts] for df_chunk in df_chunks]
 
@@ -255,8 +231,7 @@ def execute(context):
     print("HTS trips:")
     print(df_trips_hts.head())
 
-    df_employed = context.stage("synthesis.locations.matched_work")
-    df_students = context.stage("synthesis.locations.matched_education")
+    df_employed, df_students = context.stage("synthesis.population.spatial.primary.locations")
 
     print("Preparing census people for activity chains:")
     df_persons, df_traveling = prepare_people(df_employed, df_students)
@@ -267,7 +242,6 @@ def execute(context):
     print("Persons traveling (DF):", df_traveling.shape[0])
     print("Persons employed:", df_employed.shape[0])
     print("Persons students: ", df_students.shape[0])
-    #print("Children in traveling:")
 
 
     print("Assigning:")    
@@ -312,7 +286,6 @@ def execute(context):
     df_activities = df_activities.append(df_activities_u)
     df_activities.reset_index(inplace=True)
 
-    
     df_persons.drop(["index"],axis=1, inplace=True) 
     df_activities.drop(["index"],axis=1, inplace=True) 
 
