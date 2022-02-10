@@ -30,23 +30,45 @@ def configure(context):
     context.config("epsg")
 
     context.stage("synthesis.population.assigned")
+    context.stage("preprocess.secondary")
     
+
+def return_trip_duration(start_time, end_time):
+    if(start_time == np.nan or end_time == np.nan):
+        return np.nan
+    
+    if(start_time < end_time):
+        midnight = 24*60*60
+        return abs(start_time + (midnight - end_time))
+
+    return abs(start_time - end_time)
 
 """
 
 """
-    
-
 def execute(context):
     df_persons, df_activities, df_trips = context.stage("synthesis.population.assigned")
 
-    print(df_trips.info())
-    print(df_activities.info())
+    #trips
     df_activities["departure_order"] = df_activities.activity_order - 1
-    df_trips['arrival'] = df_trips.merge(df_activities[['start','person_id','activity_order']], 
+    df_trips['start'] = df_trips.merge(df_activities[['end_time','person_id','activity_order']], 
             left_on=["person_id","trip_order"],
-            right_on=["person_id","activity_order"], how="left").start.values
-    print(df_trips.info())
+            right_on=["person_id","activity_order"], how="left").end_time.values
+
+    df_trips['end'] = df_trips.merge(df_activities[['start_time','person_id','departure_order']], 
+            left_on=["person_id","trip_order"],
+            right_on=["person_id","departure_order"], how="left").start_time.values
+
+    df_trips.loc[:,"travel_time"] = df_trips.apply(lambda row: return_trip_duration(row.start, row.end), axis=1) 
+    print(df_trips.describe())
+    print(df_activities.describe())
+    print(df_activities.purpose.unique()) #TODO export all activities
+
+    # primary locations TODO to dict
+
+
+    #destinations TODO to dict
+    df_destinations = context.stage("preprocess.secondary")
     #df_trips["travel_time"] = df_trips["arrival"] - df_trips["departure"]
     
 

@@ -5,6 +5,7 @@ from tqdm import tqdm
 #import seaborn as sns
 #import matplotlib.pyplot as plt
 
+# TODO move to population.spatial primary
 
 """
 This stage assigns residence id for each person in the synthetic population based on the zone where the person lives.

@@ -98,14 +98,16 @@ def return_time_variation(df_row, column, prev_row=None, df = None):
 
     duration = df_row.trip_duration
     last_duration = prev_row.trip_duration
+    shift = 30*60
+
     try:
         if(last_duration == np.nan):
             last_duration = 0
 
         if(column == "end_time" and duration > 0):
-            offset = np.random.randint(max(-30*60, -duration*0.4),min(30*60, duration*0.4))
+            offset = np.random.randint(max(-shift, -duration*0.4),min(shift, duration*0.4))
         elif(column == "start_time" and last_duration > 0):
-            offset = np.random.randint(max(-30*60, -last_duration*0.4),min(30*60, last_duration*0.4))
+            offset = np.random.randint(max(-shift, -last_duration*0.4),min(shift, last_duration*0.4))
         else:
             offset = 0
     except ValueError:
@@ -113,16 +115,33 @@ def return_time_variation(df_row, column, prev_row=None, df = None):
         print(df[df.person_id == df_row.person_id][["person_id","traveler_id","purpose","start_time","end_time","trip_duration","activity_order"]])
         return df_row[column]
 
-    return df_row[column] + offset
+    new_time = df_row[column] + offset
+    midnight = 24*60*60
+
+    if(new_time > midnight):
+        return midnight
+    
+    if(new_time < 0):
+        return 0
+
+    return new_time
 
 
 def walk_short_distance(df_row):
     #speed = df_row.distance / df_row.trip_duration
-
-    if(df_row.distance <= WALKING_DIST):
+    if(df_row.distance != np.nan and df_row.distance <= WALKING_DIST):
         return "walk"
 
     return df_row.traveling_mode
+
+def get_distance(origin, destination):
+    if(origin == None or destination == None):
+        return np.nan
+    else:
+        try:
+            return abs(origin.distance(destination))
+        except:
+            print(origin, destination)
 
 
 def assign_activities_trips(args):
@@ -163,6 +182,10 @@ def assign_activities_trips(args):
     df_activities.loc[:, "start_time"] = [return_time_variation(row, "start_time", prev_row, df_activities)for row, prev_row in zip(df_activities.iterrows(),df_activities.shift(1).iterrows())]
     df_activities.loc[:, "end_time"] = [return_time_variation(row, "end_time", prev_row, df_activities)for row, prev_row in zip(df_activities.iterrows(),df_activities.shift(1).iterrows())]
 
+    df_activities.loc[:,"trip_duration"] = [return_trip_duration(row, next_row) 
+                                for row, next_row in zip(df_activities.iterrows(),df_activities.shift(-1).iterrows())]
+
+
     #prepare trips
     df_ttrips = df_persons.merge(df_trips_hts,
                                     left_on="traveler_id", right_on="traveler_id", how="inner")
@@ -180,7 +203,8 @@ def assign_activities_trips(args):
                                 left_on=["person_id", "trip_order_to"], right_on=["person_id","activity_order"],
                                 how="left").geometry.values
 
-    df_ttrip_activity.loc[:,"distance"] = df_ttrip_activity.apply(lambda row: abs(row.origin.distance(row.destination)), axis=1)
+    #df_ttrip_activity.loc[:,"distance"] = df_ttrip_activity.apply(lambda row: abs(row.origin.distance(row.destination)), axis=1) #TODO
+    df_ttrip_activity.loc[:,"distance"] = df_ttrip_activity.apply(lambda row: get_distance(row.origin, row.destination), axis=1)
     print(df_ttrip_activity[["distance","trip_duration"]].describe())
     print(df_ttrip_activity.traveling_mode.value_counts())
     df_ttrip_activity.loc[:,"traveling_mode"] = df_ttrip_activity.apply(lambda row: walk_short_distance(row), axis=1)
@@ -310,7 +334,6 @@ def execute(context):
     print(df_ttrips.head())
 
     #car-passenger without drivers_lic and car avail
-    #df_ttrips.travel_mode = df_ttrips.replace("car-passenger","car")
     print(df_persons.driving_license.value_counts())
     cars = df_ttrips[df_ttrips.traveling_mode == "car"]
     #pd.set_option('display.max_rows', None)

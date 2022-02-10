@@ -8,7 +8,6 @@ from shapely.geometry import LineString, Point, point
 
 """
 Exporting assigned activity coords to shapefiles.
-
 """
 def configure(context):
     context.config("output_path")
