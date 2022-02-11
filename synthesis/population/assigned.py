@@ -276,6 +276,8 @@ def execute(context):
 
     df_census_home = context.stage("synthesis.locations.census_home")
     df_census_matched = context.stage("synthesis.population.matched")
+    print("Invalid chain HTS traveler(s):")
+    print(df_census_matched[df_census_matched.person_id.isin([144,219,260,1516])].hdm_source_id)
     df_census_matched = df_census_matched.merge(df_travelers[["traveler_id","car_avail","driving_license"]],
                                     left_on="hdm_source_id", right_on="traveler_id", how="left")
     df_census_matched.loc[:,"residence_id"] = df_census_matched.merge(df_census_home[["person_id","residence_id"]],

@@ -1,26 +1,31 @@
 import pandas as pd
 import numpy as np
 import geopandas as gpd
+import shapely.geometry as geo
+
+from synthesis.algorithms.secondary.problems import find_assignment_problems
+from synthesis.algorithms.secondary.rda import AssignmentSolver, DiscretizationErrorObjective, GravityChainSolver
+from synthesis.algorithms.secondary.components import CustomDistanceSampler, CustomDiscretizationSolver
 
 #import seaborn as sns
 #import matplotlib.pyplot as plt
 
-WALKING_DIST = 50 #150
+WALKING_DIST = 50
 
 
 """
-This stage assigns facility id for each working person in the synthetic population 
-based on the zone where the person lives, the zone-zone commute probability and the commute distance (TS) 
-between residence id and candidate work destinations.
+#TODO
 
 """
 
 def configure(context):
     context.config("seed")
+    context.config("epsg")
     context.config("data_path")
     context.config("output_path")
-    context.config("epsg")
+    
     context.stage("preprocess.secondary")
+    context.stage("synthesis.population.matched")
     context.stage("synthesis.population.assigned")
     context.stage("synthesis.population.spatial.secondary.distance_distributions")
     
@@ -83,6 +88,38 @@ def prepare_secondary(df_destinations):
 
     return data
 
+def prepare_trips(df_trips, df_activities):
+    df_activities["departure_order"] = df_activities.activity_order - 1
+    df_trips['start'] = df_trips.merge(df_activities[['end_time','person_id','activity_order']], 
+            left_on=["person_id","trip_order"],
+            right_on=["person_id","activity_order"], how="left").end_time.values
+
+    df_trips['preceeding_purpose'] = df_trips.merge(df_activities[['purpose','person_id','activity_order']], 
+            left_on=["person_id","trip_order"],
+            right_on=["person_id","activity_order"], how="left").purpose.values
+
+    df_trips['end'] = df_trips.merge(df_activities[['start_time','person_id','departure_order']], 
+            left_on=["person_id","trip_order"],
+            right_on=["person_id","departure_order"], how="left").start_time.values
+
+    df_trips['following_purpose'] = df_trips.merge(df_activities[['purpose','person_id','departure_order']], 
+            left_on=["person_id","trip_order"],
+            right_on=["person_id","departure_order"], how="left").purpose.values
+
+    df_trips.loc[:,"travel_time"] = df_trips.apply(lambda row: return_trip_duration(row.start, row.end), axis=1) 
+
+    df_trips.rename(columns={"traveling_mode":"mode"}, inplace=True)
+
+
+    FIELDS = ["person_id", "trip_id", "preceeding_purpose", "following_purpose", "mode", "travel_time"] #TODO
+    #trip_id
+    df_trips["trip_id"] = df_trips.trip_order.values
+
+    df_trips = df_trips[FIELDS]
+    df_trips = df_trips.sort_values(["person_id", "trip_id"])
+    return df_trips
+
+
 def resample_cdf(cdf, factor):
     if factor >= 0.0:
         cdf = cdf * (1.0 + factor * np.arange(1, len(cdf) + 1) / len(cdf))
@@ -96,6 +133,23 @@ def resample_distributions(distributions, factors):
     for mode, mode_distributions in distributions.items():
         for distribution in mode_distributions["distributions"]:
             distribution["cdf"] = resample_cdf(distribution["cdf"], factors[mode])
+
+
+def print_person(person_id, df_persons, df_activities, df_trips):
+    print("Person:")
+    print(df_persons[df_persons.person_id == person_id])
+    print("Activities:")
+    print(df_activities[df_activities.person_id == person_id])
+    print("Trips:")
+    print(df_trips[df_trips.person_id == person_id])
+
+
+def remove_ids(remove_ids, df_persons, df_activities, df_trips):
+    df_persons = df_persons[~df_persons.person_id.isin(remove_ids)]
+    df_activities = df_activities[~df_activities.person_id.isin(remove_ids)]
+    df_trips = df_trips[~df_trips.person_id.isin(remove_ids)]
+
+    return df_persons, df_activities, df_trips
 """
 
 """
@@ -104,19 +158,23 @@ def execute(context):
     df_destinations = context.stage("preprocess.secondary")
 
     #trips
-    df_activities["departure_order"] = df_activities.activity_order - 1
-    df_trips['start'] = df_trips.merge(df_activities[['end_time','person_id','activity_order']], 
-            left_on=["person_id","trip_order"],
-            right_on=["person_id","activity_order"], how="left").end_time.values
+    df_trips = prepare_trips(df_trips, df_activities)
 
-    df_trips['end'] = df_trips.merge(df_activities[['start_time','person_id','departure_order']], 
-            left_on=["person_id","trip_order"],
-            right_on=["person_id","departure_order"], how="left").start_time.values
+    #print_person(144, df_persons, df_activities, df_trips) #o-h-o invalid chain, o-h-o-l-h-o
+    print_person(1681, df_persons, df_activities, df_trips) #o-h-o invalid chain
 
-    df_trips.loc[:,"travel_time"] = df_trips.apply(lambda row: return_trip_duration(row.start, row.end), axis=1) 
-    print("Trips census:",df_trips.describe())
-    #print(df_activities.describe())
-    print(df_activities.purpose.unique()) #TODO export all activities
+    invalid_chains = [144,219,260,1516,1681] #TODO remove invalid chains in hts export
+
+    df_census_matched = context.stage("synthesis.population.matched")
+    print("Invalid chain HTS traveler(s):")
+    print(df_census_matched[df_census_matched.person_id.isin(invalid_chains)].hdm_source_id)
+
+    df_persons, df_activities, df_trips = remove_ids(invalid_chains, df_persons, df_activities, df_trips)
+
+    print(df_activities.purpose.unique()) 
+    #TODO export all activities
+    print(df_trips.following_purpose.unique())
+    print(df_trips.preceeding_purpose.unique())
 
     # primary locations and secondary destinations
     df_primary = prepare_locations(df_activities)
@@ -124,19 +182,17 @@ def execute(context):
 
     # Prepare data
     distance_distributions = context.stage("synthesis.population.spatial.secondary.distance_distributions")
-    # Resampling for calibration TODO ???
+    # Resampling for calibration TODO
     resample_distributions(distance_distributions, dict(
         car = 0.0, ride = 0.0, pt = 0.2, walk = -0.2, bike = 0.0
     ))
 
-    #print(distance_distributions)
-
     # Segment into subsamples
     #processes = context.config("processes")
+    processes = 1 #TODO
 
     unique_person_ids = df_trips["person_id"].unique() #traveling whichc is wrong afaik?
     number_of_persons = len(unique_person_ids)
-    processes = 1 #TODO
     unique_person_ids = np.array_split(unique_person_ids, processes)
 
     random = np.random.RandomState(context.config("seed"))
@@ -177,7 +233,7 @@ def process(context, arguments):
   df_trips, df_primary, random_seed = arguments
 
   # Set up RNG
-  random = np.random.RandomState(context.config("random_seed"))
+  random = np.random.RandomState(context.config("seed"))
 
   # Set up distance sampler
   distance_distributions = context.data("distance_distributions")
@@ -195,10 +251,10 @@ def process(context, arguments):
   destinations = context.data("destinations")
   discretization_solver = CustomDiscretizationSolver(destinations)
 
-  # Set up assignment solver
+  # Set up assignment solver TODO
   thresholds = dict(
-    car = 200.0, car_passenger = 200.0, pt = 200.0,
-    bike = 100.0, walk = 100.0, taxi = 200.0
+    car = 200.0, ride= 200.0, pt = 200.0,
+    bike = 100.0, walk = 100.0
   )
 
   assignment_objective = DiscretizationErrorObjective(thresholds = thresholds)

@@ -4,9 +4,12 @@ import multiprocessing as mp
 import shapely.geometry as geo
 import geopandas as gpd
 
-from synthesis.population.spatial.by_person.secondary.problems import find_assignment_problems
+from synthesis.algorithms.secondary.problems import find_assignment_problems
+from synthesis.algorithms.secondary.rda import AssignmentSolver, DiscretizationErrorObjective, GravityChainSolver
+from synthesis.algorithms.secondary.components import CustomDistanceSampler, CustomDiscretizationSolver
 
 
+#TODO remove in the end
 
 def configure(context):
     #context.stage("synthesis.population.trips")
@@ -73,8 +76,6 @@ def resample_distributions(distributions, factors):
         for distribution in mode_distributions["distributions"]:
             distribution["cdf"] = resample_cdf(distribution["cdf"], factors[mode])
 
-from synthesis.population.spatial.by_person.secondary.rda import AssignmentSolver, DiscretizationErrorObjective, GravityChainSolver
-from synthesis.population.spatial.by_person.secondary.components import CustomDistanceSampler, CustomDiscretizationSolver
 
 def execute(context):
     # Load trips and primary locations
