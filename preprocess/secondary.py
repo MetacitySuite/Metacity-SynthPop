@@ -1,7 +1,6 @@
-import shapely.geometry as geo
 import numpy as np
 import pandas as pd
-import geopandas as gpd
+
 
 def configure(context):
     context.stage("preprocess.extract_amenities")

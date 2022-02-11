@@ -529,7 +529,7 @@ def execute(context):
     
     #re-connect all data
     df_hh, df_travelers, df_trips = connect_tables(df_hh, df_travelers, df_trips)
-    df_trips.traveling_mode.replace("ride","car_passenger", inplace=True)
+    #df_trips.traveling_mode.replace("ride","car_passenger", inplace=True)
     print(df_trips.info())
     print(df_travelers.info())
 
