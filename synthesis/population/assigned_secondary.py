@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import geopandas as gpd
 import shapely.geometry as geo
+import pprint
 
 from synthesis.algorithms.secondary.problems import find_assignment_problems
 from synthesis.algorithms.secondary.rda import AssignmentSolver, DiscretizationErrorObjective, GravityChainSolver
@@ -35,11 +36,11 @@ def return_trip_duration(start_time, end_time):
     if(start_time == np.nan or end_time == np.nan):
         return np.nan
     
-    if(start_time < end_time):
+    if(start_time > end_time):
         midnight = 24*60*60
         return abs(start_time + (midnight - end_time))
 
-    return abs(start_time - end_time)
+    return abs(end_time - start_time)
 
 
 def prepare_locations(df_activities):
@@ -74,7 +75,7 @@ def prepare_secondary(df_destinations):
     df_destinations.rename(columns = {"location_id": "destination_id"}, inplace = True)
 
     identifiers = df_destinations["destination_id"].values
-    locations = np.vstack(df_destinations["geometry"].apply(lambda x: np.array([x.x, x.y])).values)
+    locations = np.vstack(df_destinations["geometry"].apply(lambda x: np.array([-x.x, -x.y])).values) ## kladny 5514, jako df_primary ano nedava to smysl
 
     data = {}
 
@@ -161,13 +162,18 @@ def execute(context):
     df_trips = prepare_trips(df_trips, df_activities)
 
     #print_person(144, df_persons, df_activities, df_trips) #o-h-o invalid chain, o-h-o-l-h-o
-    print_person(1681, df_persons, df_activities, df_trips) #o-h-o invalid chain
+    #print_person(949584, df_persons, df_activities, df_trips) #o-h-o invalid chain
 
-    invalid_chains = [144,219,260,1516,1681] #TODO remove invalid chains in hts export
+    invalid_chains = [144,219,260,1516,1681,1916,2104,3830,949584] #TODO remove invalid chains in hts export
 
     df_census_matched = context.stage("synthesis.population.matched")
     print("Invalid chain HTS traveler(s):")
-    print(df_census_matched[df_census_matched.person_id.isin(invalid_chains)].hdm_source_id)
+    hts_travs = df_census_matched[df_census_matched.person_id.isin(invalid_chains)].hdm_source_id.values
+    print(hts_travs)
+
+    all_matched = df_census_matched[df_census_matched.hdm_source_id.isin(hts_travs)].person_id.values
+    invalid_chains.extend(all_matched)
+    print("Removing",len(invalid_chains),"people.")
 
     df_persons, df_activities, df_trips = remove_ids(invalid_chains, df_persons, df_activities, df_trips)
 
@@ -184,15 +190,24 @@ def execute(context):
     distance_distributions = context.stage("synthesis.population.spatial.secondary.distance_distributions")
     # Resampling for calibration TODO
     resample_distributions(distance_distributions, dict(
-        car = 0.0, ride = 0.0, pt = 0.2, walk = -0.2, bike = 0.0
+        car = 0.3, ride = 0.0, pt = 1.0, walk = -0.1, bike = -0.1
+        #car = 0.0, ride = 0.0, pt = 0.5, walk = 0.0, bike = 0.0
     ))
 
     # Segment into subsamples
     #processes = context.config("processes")
-    processes = 1 #TODO
+    processes = 16 #TODO
 
-    unique_person_ids = df_trips["person_id"].unique() #traveling whichc is wrong afaik?
+    #print(df_trips.person_id.unique()[:10])
+    #TEST_ID = 12
+    #df_trips = df_trips[df_trips["person_id"] == TEST_ID]
+    #print("Running TEST:")
+    #print(df_trips)
+    #print(df_activities[df_activities['person_id']== TEST_ID])
+
+    unique_person_ids = df_trips["person_id"].unique() #
     number_of_persons = len(unique_person_ids)
+    print("Processing persons:", number_of_persons)
     unique_person_ids = np.array_split(unique_person_ids, processes)
 
     random = np.random.RandomState(context.config("seed"))
@@ -221,6 +236,7 @@ def execute(context):
                 df_convergence.append(df_convergence_item)
 
     df_locations = pd.concat(df_locations).sort_values(by = ["person_id", "trip_index"])
+    print("Locations:", df_locations.shape)
     df_convergence = pd.concat(df_convergence)
 
     print("Success rate:", df_convergence["valid"].mean())
@@ -237,8 +253,9 @@ def process(context, arguments):
 
   # Set up distance sampler
   distance_distributions = context.data("distance_distributions")
+  #print(distance_distributions)
   distance_sampler = CustomDistanceSampler(
-        maximum_iterations = 1000,
+        maximum_iterations = 10,#1000
         random = random,
         distributions = distance_distributions)
 
@@ -247,6 +264,7 @@ def process(context, arguments):
     random = random, eps = 10.0, lateral_deviation = 10.0, alpha = 0.1
     )
 
+    #lateral deviation 10
   # Set up discretization solver
   destinations = context.data("destinations")
   discretization_solver = CustomDiscretizationSolver(destinations)
@@ -257,13 +275,18 @@ def process(context, arguments):
     bike = 100.0, walk = 100.0
   )
 
+  thresholds = dict(
+    car = 1000.0, ride= 1000.0, pt = 1000.0,
+    bike = 1000.0, walk = 1000.0
+  )
+
   assignment_objective = DiscretizationErrorObjective(thresholds = thresholds)
   assignment_solver = AssignmentSolver(
       distance_sampler = distance_sampler,
       relaxation_solver = relaxation_solver,
       discretization_solver = discretization_solver,
       objective = assignment_objective,
-      maximum_iterations = 20
+      maximum_iterations = 20 #20
       )
 
   df_locations = []
@@ -273,6 +296,7 @@ def process(context, arguments):
 
   for problem in find_assignment_problems(df_trips, df_primary):    
       result = assignment_solver.solve(problem)
+      #pprint.pprint(result)
 
       starting_trip_index = problem["trip_index"]
 
@@ -290,7 +314,7 @@ def process(context, arguments):
           context.progress.update()
 
   df_locations = pd.DataFrame.from_records(df_locations, columns = ["person_id", "trip_index", "destination_id", "geometry"])
-  df_locations = gpd.GeoDataFrame(df_locations, crs = dict(init = "epsg:29183"))
+  df_locations = gpd.GeoDataFrame(df_locations, crs = "EPSG:5514")
 
   df_convergence = pd.DataFrame.from_records(df_convergence, columns = ["valid", "size"])
   return df_locations, df_convergence

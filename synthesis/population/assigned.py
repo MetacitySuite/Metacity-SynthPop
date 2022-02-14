@@ -98,7 +98,7 @@ def return_time_variation(df_row, column, prev_row=None, df = None):
 
     duration = df_row.trip_duration
     last_duration = prev_row.trip_duration
-    shift = 30*60
+    shift = 15*60
 
     try:
         if(last_duration == np.nan):
@@ -274,10 +274,11 @@ def execute(context):
     print("Activities to traveling census assigned.")
     print(df_persons.info())
 
+    #TODO assign (secondary) activity chains to the rest of people
+
     df_census_home = context.stage("synthesis.locations.census_home")
     df_census_matched = context.stage("synthesis.population.matched")
-    print("Invalid chain HTS traveler(s):")
-    print(df_census_matched[df_census_matched.person_id.isin([144,219,260,1516])].hdm_source_id)
+
     df_census_matched = df_census_matched.merge(df_travelers[["traveler_id","car_avail","driving_license"]],
                                     left_on="hdm_source_id", right_on="traveler_id", how="left")
     df_census_matched.loc[:,"residence_id"] = df_census_matched.merge(df_census_home[["person_id","residence_id"]],

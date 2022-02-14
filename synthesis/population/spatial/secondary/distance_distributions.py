@@ -69,7 +69,7 @@ def execute(context):
     print(df["mode"].value_counts())
     
 
-    bin_size = 10 #200
+    bin_size = 5 #200
     distributions = {}
 
     for mode in modes:

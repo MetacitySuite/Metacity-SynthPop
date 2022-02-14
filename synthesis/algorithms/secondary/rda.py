@@ -1,5 +1,7 @@
 import numpy as np
 import numpy.linalg as la
+import geopandas as gpd
+from shapely.geometry import Polygon, LineString, Point
 
 def check_feasibility(distances, direct_distance, consider_total_distance = True):
     return calculate_feasibility(distances, direct_distance, consider_total_distance) == 0.0
@@ -43,12 +45,14 @@ class AssignmentSolver:
 
     def solve(self, problem):
         best_result = None
+        #print("Problem")
+        #print(problem)
 
         for assignment_iteration in range(self.maximum_iterations):
-            distance_result = self.distance_sampler.sample(problem)
+            distance_result = self.distance_sampler.sample(problem) # False
             
-            relaxation_result = self.relaxation_solver.solve(problem, distance_result["distances"])
-            discretization_result = self.discretization_solver.solve(problem, relaxation_result["locations"])
+            relaxation_result = self.relaxation_solver.solve(problem, distance_result["distances"]) # False
+            discretization_result = self.discretization_solver.solve(problem, relaxation_result["locations"]) #True
 
             assignment_result = self.objective.evaluate(problem, distance_result, relaxation_result, discretization_result)
 
@@ -177,6 +181,11 @@ class GravityChainSolver:
 
         # Prepare direction and normal direction
         direct_distance = la.norm(destination - origin)
+        #print("RDA direct distance:", direct_distance)
+        #print(destination)
+        #alt_distance = Point(origin[0][0], origin[0][1]).distance(Point(destination[0][0], destination[0][1]))
+        #print("Alt distance:", alt_distance)
+        #print("RDA origin:", origin)
 
         if direct_distance < 1e-12: # We have a zero direct distance, choose a direction randomly
             angle = self.random.random() * np.pi * 2.0
@@ -204,6 +213,7 @@ class GravityChainSolver:
         locations = np.vstack([origin, locations, destination])
 
         if not check_feasibility(distances, direct_distance):
+            #print("Feasibility is FALSE")
             return dict( # We still return some locations although they may not be perfect
                 valid = False, locations = locations[1:-1], iterations = None
             )
@@ -222,6 +232,7 @@ class GravityChainSolver:
         destination_weights[-1,:] = 2.0
 
         # Run gravity simulation
+        #print("running gravity simulation")
         for k in range(self.maximum_iterations):
             directions = locations[:-1] - locations[1:]
             lengths = la.norm(directions, axis = 1)
@@ -280,6 +291,7 @@ class FeasibleDistanceSampler(DistanceSampler):
         best_distances = None
         best_delta = None
 
+        #print("Sampling iteration:")
         for k in range(self.maximum_iterations):
             distances = self.sample_distances(problem)
             delta = calculate_feasibility(distances, direct_distance)
@@ -290,6 +302,8 @@ class FeasibleDistanceSampler(DistanceSampler):
 
                 if delta == 0.0:
                     break
+
+        #print("Best delta:", best_delta)
 
         return dict(
             valid = best_delta == 0.0,
