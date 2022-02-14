@@ -106,9 +106,8 @@ def execute(context):
     df_u = df_u[['person_id', 'sex', 'age', 'employment', 'residence_id', 'zone_id','district_name', 'hdm_source_id','beeline']]
     df_u = df_u.merge(df_home[["residence_id","geometry"]], left_on="residence_id", right_on="residence_id", how="left")
     df_u.rename(columns = {"geometry":"residence_point"}, inplace=True)
-    #print(df_u.info())
-    print("Employed census (workers #):", df_u.shape[0])
 
+    print("Employed census (workers #):", df_u.shape[0])
     print("Assign primary locations:")
     df_home_zones = df_u.groupby("zone_id")
 

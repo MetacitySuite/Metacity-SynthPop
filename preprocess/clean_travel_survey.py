@@ -328,7 +328,6 @@ def delete_mode_outliers(df):
     df.loc[:,'traveling_mode'] = df.traveling_mode.replace("other","pt")
     df.loc[:,'traveling_mode'] = df.traveling_mode.fillna("pt") 
     print("Trips before outlier det.:", df.shape[0])  
-
    
     mode_walk = df[df.traveling_mode == 'walk']
     mode_ride = df[df.traveling_mode == 'ride']
@@ -423,6 +422,8 @@ def clean_trip_data(context, df):
 
     #convert departure and arrival time columns to seconds
     df = calculate_time_in_seconds(df)
+    #convert beeline to meters
+    df["beeline"] = df.beeline * 1000
     df = df[['traveler_id', 'trip_order', 'origin_purpose', 'destination_purpose', 'departure_time', 'arrival_time',
                 'traveling_mode', 'last_trip', 'beeline', 'origin_code', 'destination_code', 'duration']]
     return df
