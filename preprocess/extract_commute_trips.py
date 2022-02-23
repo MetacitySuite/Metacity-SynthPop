@@ -58,8 +58,7 @@ def extract_travelling_workers(df_trips, df_matched, prague_area):
     print("Workers in HTS trips:",len(hts_workers))
     print(len(df_trips.traveler_id.unique()))
     #print(df_matched.head())
-    #employed = df_matched.loc[df_matched.employment == "employed"]
-    employed = df_matched.copy()
+    employed = df_matched.loc[df_matched.employment == "employed"]
     print("Employed in census:", len(employed))
     print("Employed (unique HTS ids) in census:", len(employed.hdm_source_id.unique()))
 
@@ -81,9 +80,8 @@ def extract_travelling_students(df_trips, df_matched, prague_area):
 
     print("Students in HTS trips:",len(hts_students))
     #print(df_matched.head())
-    #students = df_matched.loc[df_matched.employment == "student"]
+    students = df_matched.loc[df_matched.employment == "student"]
     #print("Students in census:", len(students))
-    students = df_matched.copy()
 
     no_trip = students[~students.hdm_source_id.isin(hts_students)]
     print("Students with no HTS trip:", len(no_trip))
