@@ -63,11 +63,11 @@ def prepare_people(df_employed, df_students):
 def return_geometry_point(df_row):
     if(df_row.purpose == "home"):
         return Point(-df_row.residence_point.x, -df_row.residence_point.y)
-    if(df_row.purpose in ["work", "education"]):
+    if(df_row.purpose in ["work", "education"]): #TODO shift to main function
         try:
             return Point(-df_row.commute_point.x, -df_row.commute_point.y)
         except:
-            print(df_row.traveler_id)
+            #print(df_row.traveler_id)
             return None
     return None
 
@@ -150,83 +150,6 @@ def get_distance(origin, destination):
             return abs(origin.distance(destination))
         except:
             print(origin, destination)
-
-
-def assign_activities_trips(args):
-    df_persons, df_traveling, df_activities_hts, df_trips_hts = args
-    columns = ["person_id","purpose","start_time","end_time","geometry", "activity_order","location_id"]
-    columns_t = ["person_id", "traveling_mode", "trip_order"]
-
-    #add traveler_id to persons
-    print(df_persons.shape[0])
-    merged = df_persons.merge(df_traveling[["person_id","hdm_source_id","car_avail","driving_license"]], 
-                                                    left_on="person_id", right_on="person_id", how="left")
-
-    print(df_persons.shape[0])
-    print(merged.shape[0])
-    df_persons.loc[:,"traveler_id"] = merged.hdm_source_id.values
-    df_activities = df_persons.merge(df_activities_hts,
-                                    left_on="traveler_id", right_on="traveler_id", how="left")
-
-    print(df_activities.purpose.value_counts(normalize=True))
-    df_persons.loc[:,"trip_today"] = df_persons.apply(lambda row: (df_activities.person_id.values == row["person_id"]).sum() > 1 ,axis=1) 
-    #print(df_persons.trip_today.value_counts(normalize=True))
-    df_persons.loc[:,"car_avail"] = merged.car_avail.values
-    df_persons.loc[:,"driving_license"] = merged.driving_license.values
-    del(merged)
-
-    #impute geometry
-    locations = df_activities.merge(df_traveling[["person_id","residence_id","commute_point","residence_point"]],
-                                    left_on="person_id", right_on="person_id", how="left")
-    df_activities.loc[:, "geometry"] = locations.apply(lambda row: return_geometry_point(row),axis=1)
-
-    #impute location_id
-    df_activities.loc[:, "location_id"] = locations.apply(lambda row: return_location(row),axis=1)
-    #impute start and end time variation
-    df_activities.sort_values(["person_id","activity_order"],inplace=True)
-    df_activities.reset_index(inplace=True)
-    df_activities.loc[:,"trip_duration"] = [return_trip_duration(row, next_row) 
-                                for row, next_row in zip(df_activities.iterrows(),df_activities.shift(-1).iterrows())]
-
-    df_activities.loc[:, "start_time"] = [return_time_variation(row, "start_time", prev_row, df_activities)for row, prev_row in zip(df_activities.iterrows(),df_activities.shift(1).iterrows())]
-    df_activities.loc[:, "end_time"] = [return_time_variation(row, "end_time", prev_row, df_activities)for row, prev_row in zip(df_activities.iterrows(),df_activities.shift(1).iterrows())]
-
-    df_activities.loc[:,"trip_duration"] = [return_trip_duration(row, next_row) 
-                                for row, next_row in zip(df_activities.iterrows(),df_activities.shift(-1).iterrows())]
-
-
-    #prepare trips
-    df_ttrips = df_persons.merge(df_trips_hts,
-                                    left_on="traveler_id", right_on="traveler_id", how="inner")
-
-    df_ttrip_activity = df_ttrips
-    df_ttrip_activity.loc[:,"origin"] = df_ttrip_activity.merge(df_activities, 
-                                left_on=["person_id", "trip_order"], right_on=["person_id","activity_order"],
-                                how="left").geometry.values
-    df_ttrip_activity.loc[:,"trip_duration"] = df_ttrip_activity.merge(df_activities, 
-                                left_on=["person_id", "trip_order"], right_on=["person_id","activity_order"],
-                                how="left").trip_duration.values/60
-
-    df_ttrip_activity.loc[:,"trip_order_to"] = df_ttrip_activity.trip_order + 1
-    df_ttrip_activity.loc[:,"destination"] = df_ttrip_activity.merge(df_activities, 
-                                left_on=["person_id", "trip_order_to"], right_on=["person_id","activity_order"],
-                                how="left").geometry.values
-
-    #df_ttrip_activity.loc[:,"distance"] = df_ttrip_activity.apply(lambda row: abs(row.origin.distance(row.destination)), axis=1) #TODO
-    df_ttrip_activity.loc[:,"distance"] = df_ttrip_activity.apply(lambda row: get_distance(row.origin, row.destination), axis=1)
-    print(df_ttrip_activity[["distance","trip_duration"]].describe())
-    print(df_ttrip_activity.traveling_mode.value_counts())
-    df_ttrip_activity.loc[:,"traveling_mode"] = df_ttrip_activity.apply(lambda row: walk_short_distance(row), axis=1)
-    print(df_ttrip_activity.traveling_mode.value_counts())
-
-    #drop unused columns
-    df_activities = df_activities[df_activities.columns.intersection(columns)]
-
-    df_ttrips = df_ttrip_activity[df_ttrip_activity.columns.intersection(columns_t)]
-
-    df_persons = df_persons[df_persons.columns.intersection(["person_id","trip_today","car_avail","driving_license"])]
-
-    return df_activities, df_persons, df_ttrips
 
 
 def assign_activities_other(args):
@@ -341,6 +264,15 @@ def prepare_unemployed(df_census, df_traveling, df_home, df_hts):
     print("Trav employed and students:",df_stays_home.shape[0])
     return df_u, df_travels, df_stays_home
     
+def filter_workers(df_u, df_activities_hts):
+
+    hts_active = df_activities_hts[df_activities_hts.purpose.isin(["work","education"])].traveler_id.values
+    hts_active = list(set(hts_active))
+
+    df_active = df_u[df_u.hdm_source_id.isin(hts_active)]
+    df_u = df_u[~df_u.hdm_source_id.isin(hts_active)]
+
+    return df_u, df_active
 
 def execute(context):
     _, df_travelers, _ = context.stage("preprocess.clean_travel_survey")
@@ -366,19 +298,24 @@ def execute(context):
     
     print("Together:", df_u.shape[0]+df_persons.shape[0]+df_travels.shape[0]+df_home.shape[0])
     print("Assign unemployed census:")
+    #TODO filter out people with 
+    df_u, df_u_active = filter_workers(df_u, df_activities_hts)
+    print("Unemploed (true):", df_u.shape[0])
+    print("Unemployed (active):", df_u_active.shape[0])
+
     df_activities_o, df_persons_o, df_trips_o = assign_other_activities_trips_par(df_u, df_activities_hts, df_trips_hts)
     
     return
     
     print("Assign people who stay at home (travel not in Prague):")
-    df_o = df_other.copy()
+    df_o = df_other.copy().append(df_u_active)
 
     #add unemployed to df_persons
     df_persons_u = pd.DataFrame()
     df_persons_u.loc[:,"person_id"] = df_o.person_id.values
     df_persons_u.loc[:,"trip_today"] = False
-    df_persons_u.loc[:,"car_avail"] = df_u.car_avail.values
-    df_persons_u.loc[:,"driving_license"] = df_u.driving_license.values
+    df_persons_u.loc[:,"car_avail"] = df_o.car_avail.values
+    df_persons_u.loc[:,"driving_license"] = df_o.driving_license.values
     
     df_persons = df_persons.append(df_persons_u)
     df_persons.reset_index(inplace=True)
@@ -389,9 +326,9 @@ def execute(context):
     df_activities_u.loc[:,"purpose"] = "home"
     df_activities_u.loc[:,"start_time"] = np.nan
     df_activities_u.loc[:,"end_time"] = np.nan
-    df_activities_u.loc[:,"geometry"] = df_u.geometry.apply(lambda point: Point(-point.x, -point.y))
+    df_activities_u.loc[:,"geometry"] = df_o.geometry.apply(lambda point: Point(-point.x, -point.y))
     df_activities_u.loc[:,"activity_order"] = 0
-    df_activities_u.loc[:,"location_id"] = df_u.residence_id.values
+    df_activities_u.loc[:,"location_id"] = df_o.residence_id.values
     df_activities = df_activities.append(df_activities_u)
     df_activities.reset_index(inplace=True)
     
