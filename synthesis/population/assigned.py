@@ -203,12 +203,12 @@ def assign_activities_other(args):
                                 left_on=["person_id", "trip_order_to"], right_on=["person_id","activity_order"],
                                 how="left").geometry.values
 
-    #df_ttrip_activity.loc[:,"distance"] = df_ttrip_activity.apply(lambda row: abs(row.origin.distance(row.destination)), axis=1) #TODO
-    df_ttrip_activity.loc[:,"distance"] = df_ttrip_activity.apply(lambda row: get_distance(row.origin, row.destination), axis=1)
-    print(df_ttrip_activity[["distance","trip_duration"]].describe())
-    print(df_ttrip_activity.traveling_mode.value_counts())
+    #TODO in secondary we know only trip duration
+    df_ttrip_activity.loc[:,"distance"] = np.nan #df_ttrip_activity.apply(lambda row: get_distance(row.origin, row.destination), axis=1)
+    #print(df_ttrip_activity[["distance","trip_duration"]].describe())
+    #print(df_ttrip_activity.traveling_mode.value_counts())
     df_ttrip_activity.loc[:,"traveling_mode"] = df_ttrip_activity.apply(lambda row: walk_short_distance(row), axis=1)
-    print(df_ttrip_activity.traveling_mode.value_counts())
+    #print(df_ttrip_activity.traveling_mode.value_counts())
 
     #drop unused columns
     df_activities = df_activities[df_activities.columns.intersection(columns)]
@@ -270,9 +270,10 @@ def filter_workers(df_u, df_activities_hts):
     hts_active = list(set(hts_active))
 
     df_active = df_u[df_u.hdm_source_id.isin(hts_active)]
-    df_u = df_u[~df_u.hdm_source_id.isin(hts_active)]
+    df_true = df_u[~df_u.hdm_source_id.isin(hts_active)]
+    df_true.reset_index(drop=True, inplace=True)
 
-    return df_u, df_active
+    return df_true, df_active
 
 def execute(context):
     _, df_travelers, _ = context.stage("preprocess.clean_travel_survey")
@@ -300,15 +301,20 @@ def execute(context):
     print("Assign unemployed census:")
     #TODO filter out people with 
     df_u, df_u_active = filter_workers(df_u, df_activities_hts)
-    print("Unemploed (true):", df_u.shape[0])
+    print("Unemployed (true):", df_u.shape[0])
     print("Unemployed (active):", df_u_active.shape[0])
+    
+    print("Keeping home:", df_home.shape[0]+ df_travels.shape[0]+df_u_active.shape[0])
+    print("Traveling:", df_u.shape[0]+df_persons.shape[0])
 
     df_activities_o, df_persons_o, df_trips_o = assign_other_activities_trips_par(df_u, df_activities_hts, df_trips_hts)
     
-    return
-    
     print("Assign people who stay at home (travel not in Prague):")
-    df_o = df_other.copy().append(df_u_active)
+    df_o = df_home.copy().append(df_u_active).append(df_travels)
+    df_o.reset_index(inplace=True)
+    print(df_o.info())
+    print(df_o.head())
+    print(df_activities.head())
 
     #add unemployed to df_persons
     df_persons_u = pd.DataFrame()
@@ -322,16 +328,17 @@ def execute(context):
     #add unemployed to df_activities
     columns = ["person_id","purpose","start_time","end_time", "geometry","activity_order","location_id"]
     df_activities_u = pd.DataFrame(columns=columns)
-    df_activities_u.loc[:,"person_id"] = df_persons_u.person_id.values
+    df_activities_u.loc[:,"person_id"] = df_o.person_id.values
     df_activities_u.loc[:,"purpose"] = "home"
     df_activities_u.loc[:,"start_time"] = np.nan
     df_activities_u.loc[:,"end_time"] = np.nan
-    df_activities_u.loc[:,"geometry"] = df_o.geometry.apply(lambda point: Point(-point.x, -point.y))
+    df_activities_u.loc[:,"geometry"] = df_o.residence_point.apply(lambda point: Point(-point.x, -point.y))
     df_activities_u.loc[:,"activity_order"] = 0
     df_activities_u.loc[:,"location_id"] = df_o.residence_id.values
+
     df_activities = df_activities.append(df_activities_u)
     df_activities.reset_index(inplace=True)
-    
+
 
     df_persons = df_persons.append(df_persons_o)
     df_activities = df_activities.append(df_activities_o)

@@ -164,7 +164,8 @@ def execute(context):
     #print_person(144, df_persons, df_activities, df_trips) #o-h-o invalid chain, o-h-o-l-h-o
     #print_person(949584, df_persons, df_activities, df_trips) #o-h-o invalid chain
 
-    invalid_chains = [144,219,260,1516,1681,1916,2104,3830,949584] #TODO remove invalid chains in hts export
+    invalid_chains = [144,219,260,1516,1681,1916,2104,3830,949584,78464,953,1111,1190, 2384,3312,11930,25859,958365] #TODO remove invalid chains in hts export
+    #print_person(1190, df_persons, df_activities, df_trips)
 
     df_census_matched = context.stage("synthesis.population.matched")
     print("Invalid chain HTS traveler(s):")
@@ -208,6 +209,8 @@ def execute(context):
     unique_person_ids = df_trips["person_id"].unique() #
     number_of_persons = len(unique_person_ids)
     print("Processing persons:", number_of_persons)
+    number_w_secondary = len(set(df_activities[df_activities.purpose.isin(["leisure","shop","other"])].person_id.values))
+    print("Persons with secondary destinations:", number_w_secondary, number_w_secondary/number_of_persons, "%")
     unique_person_ids = np.array_split(unique_person_ids, processes)
 
     random = np.random.RandomState(context.config("seed"))
@@ -255,13 +258,13 @@ def process(context, arguments):
   distance_distributions = context.data("distance_distributions")
   #print(distance_distributions)
   distance_sampler = CustomDistanceSampler(
-        maximum_iterations = 10,#1000
+        maximum_iterations = 100,#1000
         random = random,
         distributions = distance_distributions)
 
   # Set up relaxation solver; currently, we do not consider tail problems.
   relaxation_solver = GravityChainSolver(
-    random = random, eps = 10.0, lateral_deviation = 10.0, alpha = 0.1
+    random = random, eps = 10.0, lateral_deviation = 10.0, alpha = 0.3
     )
 
     #lateral deviation 10
@@ -277,7 +280,7 @@ def process(context, arguments):
 
   thresholds = dict(
     car = 1000.0, ride= 1000.0, pt = 1000.0,
-    bike = 1000.0, walk = 1000.0
+    bike = 500.0, walk = 500.0
   )
 
   assignment_objective = DiscretizationErrorObjective(thresholds = thresholds)
@@ -286,7 +289,7 @@ def process(context, arguments):
       relaxation_solver = relaxation_solver,
       discretization_solver = discretization_solver,
       objective = assignment_objective,
-      maximum_iterations = 20 #20
+      maximum_iterations = 40 #20
       )
 
   df_locations = []
