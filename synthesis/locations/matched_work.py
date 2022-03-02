@@ -29,7 +29,6 @@ def configure(context):
     context.config("epsg")
     context.config("prague_area_code")
     context.stage("preprocess.clean_travel_survey")
-    context.stage("synthesis.population.matched")
     context.stage("preprocess.zones")
     context.stage("preprocess.extract_amenities")
     context.stage("preprocess.extract_commute_trips")
@@ -94,7 +93,6 @@ def execute(context):
     C_kk["commute_x"] = C_kk.commute_point.apply(lambda point: point.x)
     C_kk["commute_y"] = C_kk.commute_point.apply(lambda point: point.y)
     print("Work trips available:",C_kk.shape[0])
-
 
     #Assigning primary location (work): Step 3
     df_u = df_employed

@@ -9,6 +9,7 @@ def configure(context):
     context.stage("synthesis.population.matched")
     context.stage("preprocess.extract_amenities")
     context.stage("preprocess.clean_commute_prob")
+    context.stage("preprocess.extract_hts_trip_chains")
     context.stage("preprocess.zones")
 
 def extract_primary_activity_distances(df_people, df_trips):
@@ -114,9 +115,12 @@ def extract_trip_counts(k, demand_k, pi_k, other_dests):
 
     return f_k
 
+
 def execute(context):
     df_matched = context.stage("synthesis.population.matched")
+
     _, _, df_trips = context.stage("preprocess.clean_travel_survey")
+
     df_workplaces, df_schools, df_shops, df_leisure, df_other = context.stage("preprocess.extract_amenities")
     pi_kk, pi_kk_edu = context.stage("preprocess.clean_commute_prob")
 

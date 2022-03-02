@@ -24,6 +24,29 @@ def set_students(row):
     
     return row.employment
 
+def remove_invalid_chains(df_matched, hts_activities):
+
+    start_outside_home = set(hts_activities[hts_activities.activity_order == 0][hts_activities.purpose != "home"].traveler_id.values)
+    print("HTS people starting outside home:",len(start_outside_home))
+    
+    
+    end_outside_home = set()
+    
+    for i,traveler in hts_activities.groupby("traveler_id"):
+        max_order = max(traveler.activity_order.values)
+        #print(max_order)
+        if(traveler[traveler.activity_order == max_order].purpose.values != "home" or traveler[traveler.activity_order == 0].purpose.values != "home"):
+            print(traveler)
+            end_outside_home.add(i)
+
+    print("HTS people ending outside home:",len(set(end_outside_home)))
+    # Filter matched
+    invalid_hts_travelers = start_outside_home.union(end_outside_home)
+    df_valid = df_matched[~df_matched.hdm_source_id.isin(invalid_hts_travelers)]
+    print("Removed:", df_matched.shape[0] - df_valid.shape[0])
+    df_valid.reset_index(inplace=True)
+    return df_valid
+
 def configure(context):
     #context.stage("synthesis.population.sampled")
     context.config("data_path")
@@ -32,6 +55,7 @@ def configure(context):
     context.config("matching_minimum_samples")
     context.stage("preprocess.clean_census")
     context.stage("preprocess.clean_travel_survey")
+    context.stage("preprocess.extract_hts_trip_chains")
     context.stage("preprocess.zones")
 
 def execute(context):
@@ -102,4 +126,7 @@ def execute(context):
     df_target.reset_index(inplace=True)
     #print(len(df_target.loc[df_target['hdm_source_id'] == -1]))
     #return matched census individuals
-    return df_target
+
+    hts_activities, _ = context.stage("preprocess.extract_hts_trip_chains")
+    df_matched = remove_invalid_chains(df_target, hts_activities)
+    return df_matched
