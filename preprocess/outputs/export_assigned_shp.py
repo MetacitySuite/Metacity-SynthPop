@@ -11,7 +11,7 @@ Exporting assigned activity coords to shapefiles.
 """
 def configure(context):
     context.config("output_path")
-    context.stage("synthesis.population.assigned")
+    context.stage("synthesis.population.population")
 
 
 def export_shp(df, output_shp):
@@ -35,10 +35,14 @@ def export_activity(df, activity, context):
 
 
 def execute(context):
-    _, df_activities, _ = context.stage("synthesis.population.assigned")
+    _, df_activities, _ = context.stage("synthesis.population.population")
     export_activity(df_activities, "home", context)
     export_activity(df_activities, "work", context)
     export_activity(df_activities, "education", context)
+
+    export_activity(df_activities, "shop", context)
+    export_activity(df_activities, "leisure", context)
+    export_activity(df_activities, "other", context)
     return
 
 

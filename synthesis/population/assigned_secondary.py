@@ -240,7 +240,7 @@ def process(context, arguments):
   distance_distributions = context.data("distance_distributions")
   #print(distance_distributions)
   distance_sampler = CustomDistanceSampler(
-        maximum_iterations = 200,#1000
+        maximum_iterations = 100,#1000
         random = random,
         distributions = distance_distributions)
 
@@ -278,7 +278,7 @@ def process(context, arguments):
       relaxation_solver = relaxation_solver,
       discretization_solver = discretization_solver,
       objective = assignment_objective,
-      maximum_iterations = 100 #20
+      maximum_iterations = 20 #20
       )
 
   df_locations = []

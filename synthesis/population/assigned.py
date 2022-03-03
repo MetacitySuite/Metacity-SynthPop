@@ -155,7 +155,7 @@ def get_distance(origin, destination):
 def assign_activities_other(args):
     df_persons, df_activities_hts, df_trips_hts = args
     columns = ["person_id","purpose","start_time","end_time","geometry", "activity_order","location_id"]
-    columns_t = ["person_id", "traveling_mode", "trip_order"]
+    columns_t = ["person_id", "traveling_mode", "trip_order", "beeline"]
 
     df_persons.loc[:,"traveler_id"] = df_persons.hdm_source_id.values
     df_activities = df_persons.merge(df_activities_hts, left_on="traveler_id", right_on="traveler_id", how="left")
@@ -205,6 +205,8 @@ def assign_activities_other(args):
 
     #TODO in secondary we know only trip duration
     df_ttrip_activity.loc[:,"distance"] = np.nan #df_ttrip_activity.apply(lambda row: get_distance(row.origin, row.destination), axis=1)
+    #df_ttrip_activity.loc[:,"beeline"] = df_persons.merge(df_trips_hts,
+    #                                left_on="traveler_id", right_on="traveler_id", how="inner")
     #print(df_ttrip_activity[["distance","trip_duration"]].describe())
     #print(df_ttrip_activity.traveling_mode.value_counts())
     df_ttrip_activity.loc[:,"traveling_mode"] = df_ttrip_activity.apply(lambda row: walk_short_distance(row), axis=1)
@@ -366,21 +368,5 @@ def execute(context):
     print(df_ttrips.info())
     print(df_ttrips.head())
 
-    #car-passenger without drivers_lic and car avail
-    print(df_persons.driving_license.value_counts())
-    cars = df_ttrips[df_ttrips.traveling_mode == "car"]
-    #pd.set_option('display.max_rows', None)
-    drivers = cars.person_id.unique() #TODO driving_lic = True if drives a car
-    df_persons.loc[:, "driving_license"] = df_persons.apply(lambda row: row.driving_license or row.person_id in drivers,axis=1)
-    print(df_persons.driving_license.value_counts())
-    print(df_ttrips.traveling_mode.value_counts())
-
-    print("People traveling today:")
-    print(df_persons.trip_today.value_counts())
-
-    #save to CSV files
-    df_persons.to_csv(context.config("output_path")+"/df_persons.csv")
-    df_activities.to_csv(context.config("output_path")+"/df_activities.csv")
-    df_ttrips.to_csv(context.config("output_path")+"/df_trips.csv")
  
     return df_persons, df_activities, df_ttrips

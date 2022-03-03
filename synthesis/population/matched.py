@@ -128,5 +128,7 @@ def execute(context):
     #return matched census individuals
 
     hts_activities, _ = context.stage("preprocess.extract_hts_trip_chains")
+    #TODO export data pro vojtu
+
     df_matched = remove_invalid_chains(df_target, hts_activities)
     return df_matched
