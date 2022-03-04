@@ -5,7 +5,6 @@ import geopandas as gpd
 from shapely.geometry import LineString, Point, point
 
 
-
 """
 Exporting assigned activity coords to shapefiles.
 """
