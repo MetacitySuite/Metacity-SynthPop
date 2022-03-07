@@ -1,66 +1,32 @@
-import numpy as np
 import pandas as pd
-import multiprocessing as mp
-import shapely.geometry as geo
+import numpy as np
 import geopandas as gpd
+import shapely.geometry as geo
+import synthesis.algo.other.misc as misc
 
-from synthesis.algorithms.secondary.problems import find_assignment_problems
-from synthesis.algorithms.secondary.rda import AssignmentSolver, DiscretizationErrorObjective, GravityChainSolver
-from synthesis.algorithms.secondary.components import CustomDistanceSampler, CustomDiscretizationSolver
+from synthesis.algo.secondary.problems import find_assignment_problems
+from synthesis.algo.secondary.rda import AssignmentSolver, DiscretizationErrorObjective, GravityChainSolver
+from synthesis.algo.secondary.components import CustomDistanceSampler, CustomDiscretizationSolver
 
 
-#TODO remove in the end
+
+"""
+#TODO
+
+"""
 
 def configure(context):
-    #context.stage("synthesis.population.trips")
-    #context.stage("synthesis.population.sociodemographics")
+    context.config("seed")
+    context.config("epsg")
+    context.config("data_path")
+    context.config("output_path")
+    context.config("secondary_location_processes")
 
-    #context.stage("synthesis.population.sampled")
-    context.stage("synthesis.population.assigned")
+    context.stage("synthesis.spatial.primary.assigned")
+    context.stage("synthesis.spatial.secondary.distance_distributions")
+    context.stage("synthesis.spatial.secondary.locations")
+    
 
-    #context.stage("synthesis.population.spatial.by_person.primary_locations") #pull from activites
-
-    #context.stage("synthesis.population.spatial.by_person.secondary.distance_distributions")# ??
-    context.stage("preprocess.secondary") #destinations
-
-    context.config("seed") ## seed
-    context.config("processes") ## TODO
-
-def prepare_locations(context):
-    # Load persons and their primary locations
-    df_home, df_work, df_education = context.stage("synthesis.population.spatial.by_person.primary_locations")
-
-    df_home["home"] = [geo.Point(px,py) for px, py in list(zip(df_home["x"].values.tolist(), df_home["y"].values.tolist()))]
-
-    df_work["work"] = [geo.Point(px,py) for px, py in list(zip(df_work["x"].values.tolist(), df_work["y"].values.tolist()))]
-
-    df_education["education"] = [geo.Point(px,py) for px, py in list(zip(df_education["x"].values.tolist(), df_education["y"].values.tolist()))]
-
-    df_persons = context.stage("synthesis.population.sampled")[["person_id", "household_id"]]
-    df_locations = pd.merge(df_home, df_persons, how = "left", on = ["person_id", "household_id"])
-    df_locations = pd.merge(df_locations, df_work[["person_id", "work"]], how = "left", on = "person_id")
-    df_locations = pd.merge(df_locations, df_education[["person_id", "education"]], how = "left", on = "person_id")
-
-    return df_locations[["person_id", "home", "work", "education"]].sort_values(by = "person_id")
-
-def prepare_destinations(context):
-    df_destinations = context.stage("synthesis.destinations")
-    df_destinations.rename(columns = {"location_id": "destination_id"}, inplace = True)
-
-    identifiers = df_destinations["destination_id"].values
-    locations = np.vstack(df_destinations["geometry"].apply(lambda x: np.array([x.x, x.y])).values)
-
-    data = {}
-
-    for purpose in ("shop", "leisure", "other"):
-        f = df_destinations["offers_%s" % purpose].values
-
-        data[purpose] = dict(
-            identifiers = identifiers[f],
-            locations = locations[f]
-        )
-
-    return data
 
 def resample_cdf(cdf, factor):
     if factor >= 0.0:
@@ -70,38 +36,52 @@ def resample_cdf(cdf, factor):
 
     cdf /= cdf[-1]
     return cdf
-
+    
 def resample_distributions(distributions, factors):
     for mode, mode_distributions in distributions.items():
         for distribution in mode_distributions["distributions"]:
             distribution["cdf"] = resample_cdf(distribution["cdf"], factors[mode])
 
 
+def print_person(person_id, df_persons, df_activities, df_trips):
+    print("Person:")
+    print(df_persons[df_persons.person_id == person_id])
+    print("Activities:")
+    print(df_activities[df_activities.person_id == person_id])
+    print("Trips:")
+    print(df_trips[df_trips.person_id == person_id])
+
+def remove_ids(remove_ids, df_persons, df_activities, df_trips):
+    df_persons = df_persons[~df_persons.person_id.isin(remove_ids)]
+    df_activities = df_activities[~df_activities.person_id.isin(remove_ids)]
+    df_trips = df_trips[~df_trips.person_id.isin(remove_ids)]
+
+    return df_persons, df_activities, df_trips
+"""
+
+"""
 def execute(context):
-    # Load trips and primary locations
-    df_trips = context.stage("synthesis.population.trips").sort_values(by = ["person_id", "trip_id"])
-
-    df_trips["travel_time"] = df_trips["arrival_time"] - df_trips["departure_time"]
-
-    df_primary = prepare_locations(context)
-
-    # Prepare data
-    distance_distributions = context.stage("synthesis.population.spatial.by_person.secondary.distance_distributions")
-    destinations = prepare_destinations(context)
-
-    # Resampling for calibration
+    df_persons, df_activities, df_trips = context.stage("synthesis.spatial.primary.assigned")
+    df_trips, df_primary, destinations = context.stage("synthesis.spatial.secondary.locations")
+    distance_distributions = context.stage("synthesis.spatial.secondary.distance_distributions")
+    
+    # Resampling for calibration TODO
     resample_distributions(distance_distributions, dict(
-        car = 0.0, car_passenger = 0.0, pt = 0.2, walk = -0.2, taxi = 0.0
+        #car = 0.3, ride = 0.0, pt = 1.0, walk = -0.1, bike = -0.1
+        car = 0.0, ride = 0.0, pt = 0.5, walk = 0.0, bike = 0.0
     ))
 
     # Segment into subsamples
-    processes = context.config("processes")
+    processes = context.config("secondary_location_processes")
 
-    unique_person_ids = df_trips["person_id"].unique()
+    unique_person_ids = df_trips["person_id"].unique() #
     number_of_persons = len(unique_person_ids)
+    print("Processing persons:", number_of_persons)
+    number_w_secondary = len(set(df_activities[df_activities.purpose.isin(["leisure","shop","other"])].person_id.values))
+    print("Persons with secondary destinations:", number_w_secondary, number_w_secondary/number_of_persons, "%")
     unique_person_ids = np.array_split(unique_person_ids, processes)
 
-    random = np.random.RandomState(context.config("random_seed"))
+    random = np.random.RandomState(context.config("seed"))
     random_seeds = random.randint(10000, size = processes)
 
     # Create batch problems for parallelization
@@ -127,39 +107,55 @@ def execute(context):
                 df_convergence.append(df_convergence_item)
 
     df_locations = pd.concat(df_locations).sort_values(by = ["person_id", "trip_index"])
+    print("Locations:", df_locations.shape)
     df_convergence = pd.concat(df_convergence)
 
     print("Success rate:", df_convergence["valid"].mean())
 
     return df_locations, df_convergence
-
-def process(context, arguments):
-  df_trips, df_primary, random_seed = arguments
     
 
+    
+def process(context, arguments):
+  df_trips, df_primary, random_seed = arguments
+
   # Set up RNG
-  random = np.random.RandomState(context.config("random_seed"))
+  random = np.random.RandomState(context.config("seed"))
 
   # Set up distance sampler
   distance_distributions = context.data("distance_distributions")
+  #print(distance_distributions)
   distance_sampler = CustomDistanceSampler(
-        maximum_iterations = 1000,
+        maximum_iterations = 100,#1000
         random = random,
         distributions = distance_distributions)
 
   # Set up relaxation solver; currently, we do not consider tail problems.
+  gamma = 20.0
+  delta_p = 0.1
+
   relaxation_solver = GravityChainSolver(
-    random = random, eps = 10.0, lateral_deviation = 10.0, alpha = 0.1
+    random = random, eps = 20.0, lateral_deviation = 20.0, alpha = 0.3
+    #lateral deviation in meters (sigma)
+    # displacemenet factor delta_p 0.1 (?)
+    #convergence threshold in meters
     )
 
+    #lateral deviation 10
   # Set up discretization solver
   destinations = context.data("destinations")
   discretization_solver = CustomDiscretizationSolver(destinations)
 
-  # Set up assignment solver
+  # Maximum discretization errors
+
+  #thresholds = dict(
+  #  car = 200.0, ride= 200.0, pt = 200.0,
+  #  bike = 100.0, walk = 100.0
+  #)
+
   thresholds = dict(
-    car = 200.0, car_passenger = 200.0, pt = 200.0,
-    bike = 100.0, walk = 100.0, taxi = 200.0
+    car = 1000.0, ride= 1000.0, pt = 1000.0,
+    bike = 1000.0, walk = 750.0
   )
 
   assignment_objective = DiscretizationErrorObjective(thresholds = thresholds)
@@ -168,7 +164,7 @@ def process(context, arguments):
       relaxation_solver = relaxation_solver,
       discretization_solver = discretization_solver,
       objective = assignment_objective,
-      maximum_iterations = 20
+      maximum_iterations = 20 #20
       )
 
   df_locations = []
@@ -178,6 +174,7 @@ def process(context, arguments):
 
   for problem in find_assignment_problems(df_trips, df_primary):    
       result = assignment_solver.solve(problem)
+      #pprint.pprint(result)
 
       starting_trip_index = problem["trip_index"]
 
@@ -195,7 +192,7 @@ def process(context, arguments):
           context.progress.update()
 
   df_locations = pd.DataFrame.from_records(df_locations, columns = ["person_id", "trip_index", "destination_id", "geometry"])
-  df_locations = gpd.GeoDataFrame(df_locations, crs = dict(init = "epsg:29183"))
+  df_locations = gpd.GeoDataFrame(df_locations, crs = "EPSG:5514")
 
   df_convergence = pd.DataFrame.from_records(df_convergence, columns = ["valid", "size"])
   return df_locations, df_convergence

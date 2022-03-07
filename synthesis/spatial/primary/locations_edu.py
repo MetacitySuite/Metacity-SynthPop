@@ -21,19 +21,19 @@ between residence id and candidate work destinations.
 
 def configure(context):
     context.config("seed")
-    context.stage("preprocess.clean_census")
-    context.stage("preprocess.home")
-    context.stage("synthesis.locations.census_home")
+    context.stage("data.census.clean_census")
+    context.stage("data,spatial.home")
+    context.stage("synthesis.spatial.primary.census_home")
     context.config("data_path")
     context.config("output_path")
     context.config("epsg")
     context.config("prague_area_code")
-    context.stage("preprocess.clean_travel_survey")
+    context.stage("data.hts.clean_travel_survey")
     context.stage("synthesis.population.matched")
-    context.stage("preprocess.zones")
-    context.stage("preprocess.extract_amenities")
-    context.stage("preprocess.extract_commute_trips")
-    context.stage("preprocess.extract_facility_candidates")
+    context.stage("data.spatial.zones")
+    context.stage("data.spatial.extract_amenities")
+    context.stage("synthesis.spatial.primary.extract_commute_trips")
+    context.stage("synthesis.spatial.primary.candidates")
 
 
 """
@@ -82,15 +82,15 @@ def export_shp(df, output_shp):
 
 
 def execute(context):
-    df_home = context.stage("preprocess.home")
-    df_census_home = context.stage("synthesis.locations.census_home")
+    df_home = context.stage("data.spatial.home")
+    df_census_home = context.stage("synthesis.spatial.primary.census_home")
     epsg = context.config("epsg")
 
     #Assigning primary location (work): Step 1
-    _, _ , _ ,df_students = context.stage("preprocess.extract_commute_trips")
+    _, _ , _ ,df_students = context.stage("synthesis.spatial.primary.extract_commute_trips")
 
     #Assigning primary location (work): Step 2
-    _, C_kk = context.stage("preprocess.extract_facility_candidates")
+    _, C_kk = context.stage("synthesis.spatial.primary.candidates")
     C_kk["commute_x"] = C_kk.commute_point.apply(lambda point: point.x)
     C_kk["commute_y"] = C_kk.commute_point.apply(lambda point: point.y)
     print("School trips available:",C_kk.shape[0])

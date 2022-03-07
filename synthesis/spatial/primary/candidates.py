@@ -15,9 +15,9 @@ place POINT at their centroid.
 
 def configure(context):
     context.config("seed")
-    context.stage("preprocess.zones")
-    context.stage("preprocess.extract_amenities")
-    context.stage("preprocess.extract_commute_trips")
+    context.stage("data.spatial.zones")
+    context.stage("data.spatial.extract_amenities")
+    context.stage("synthesis.spatial.primary.extract_commute_trips")
 
 
 
@@ -82,11 +82,11 @@ def extract_facility_candidates(f_kk, df_workplaces, sample_seed, zones):
 
 
 def execute(context):
-    df_zones = context.stage("preprocess.zones")
-    df_workplaces, df_schools, df_shops, df_leisure, df_other = context.stage("preprocess.extract_amenities")
+    df_zones = context.stage("data.spatial.zones")
+    df_workplaces, df_schools, _, _, _ = context.stage("data.spatial.extract_amenities")
     sample_seed = context.config("seed")
 
-    f_kk_work, df_employed, f_kk_edu, df_students = context.stage("preprocess.extract_commute_trips")
+    f_kk_work, df_employed, f_kk_edu, df_students = context.stage("synthesis.spatial.primary.extract_commute_trips")
     print("Abstract work trips:", f_kk_work.trip_count.sum())
     print("Employed travellers:",len(df_employed))
     print("Abstract school trips:", f_kk_edu.trip_count.sum())

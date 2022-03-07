@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 def configure(context):
-    context.stage("preprocess.clean_travel_survey")
+    context.stage("data.hts.clean_travel_survey")
 
 
 def return_trip_duration(start_time, end_time):
@@ -40,7 +40,7 @@ def calculate_bounds(values, bin_size):
 
 def execute(context):
     # Prepare data HTS
-    _, df_persons, df_trips = context.stage("preprocess.clean_travel_survey")
+    _, df_persons, df_trips = context.stage("data.hts.clean_travel_survey")
 
     df_persons["weight"] = 1./df_persons.shape[0]
 

@@ -5,12 +5,11 @@ import tqdm
 
 def configure(context):
     context.config("prague_area_code")
-    context.stage("preprocess.clean_travel_survey")
+    context.stage("data.hts.clean_travel_survey")
     context.stage("synthesis.population.matched")
-    context.stage("preprocess.extract_amenities")
-    context.stage("preprocess.clean_commute_prob")
-    context.stage("preprocess.extract_hts_trip_chains")
-    context.stage("preprocess.zones")
+    context.stage("data.spatial.extract_amenities")
+    context.stage("data.other.clean_commute_prob")
+    context.stage("data.spatial.zones")
 
 def extract_primary_activity_distances(df_people, df_trips):
     print("Extracting commute distances:")
@@ -47,7 +46,6 @@ def extract_school_distances(df_people, df_trips):
     print("\tCensus students with hts beeline:",df_people.shape[0])
     return df_people
 
-
 def extract_travelling_workers(df_trips, df_matched, prague_area):
     #traveler ids with work trips in Prague
     work_trips = df_trips[df_trips.destination_purpose == "work"].copy()
@@ -64,7 +62,7 @@ def extract_travelling_workers(df_trips, df_matched, prague_area):
     print("Employed (unique HTS ids) in census:", len(employed.hdm_source_id.unique()))
 
     no_trip = employed[~employed.hdm_source_id.isin(hts_workers)]
-    print("Employed with no HTS trip:", len(no_trip))
+    print("Employed with no valid HTS trip:", len(no_trip))
 
     employed_trip = employed[employed.hdm_source_id.isin(hts_workers)]
     print("Employed (traveling) people in zones:",employed_trip.shape[0])
@@ -98,8 +96,7 @@ def extract_travel_demands(employed_trip):
     for i, zone in employed_zones:
         O_k[i] = len(zone)
     return O_k
-
-    
+   
 def extract_trip_counts(k, demand_k, pi_k, other_dests):
     f_k = pd.DataFrame()
 
@@ -119,12 +116,12 @@ def extract_trip_counts(k, demand_k, pi_k, other_dests):
 def execute(context):
     df_matched = context.stage("synthesis.population.matched")
 
-    _, _, df_trips = context.stage("preprocess.clean_travel_survey")
+    _, _, df_trips = context.stage("data.hts.clean_travel_survey")
 
-    df_workplaces, df_schools, df_shops, df_leisure, df_other = context.stage("preprocess.extract_amenities")
-    pi_kk, pi_kk_edu = context.stage("preprocess.clean_commute_prob")
+    df_workplaces, df_schools, df_shops, df_leisure, df_other = context.stage("data.spatial.extract_amenities")
+    pi_kk, pi_kk_edu = context.stage("data.other.clean_commute_prob")
 
-    df_zones = context.stage("preprocess.zones")
+    df_zones = context.stage("data.spatial.zones")
     
     print("matched:",df_matched.shape[0])
     print("df_trips", df_trips.shape[0])

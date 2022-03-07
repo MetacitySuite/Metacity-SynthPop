@@ -1,11 +1,7 @@
 import pandas as pd
 import numpy as np
-import geopandas as gpd
 from tqdm import tqdm
-#import seaborn as sns
-#import matplotlib.pyplot as plt
 
-# TODO move to population.spatial primary
 
 """
 This stage assigns residence id for each person in the synthetic population based on the zone where the person lives.
@@ -14,9 +10,8 @@ This stage assigns residence id for each person in the synthetic population base
 
 def configure(context):
     context.config("seed")
-    context.stage("preprocess.clean_census")
-    context.stage("preprocess.home")
-
+    context.stage("data.census.clean_census")
+    context.stage("data.spatial.home")
 
 """
 Sample number of houses for the people living in the zone
@@ -31,8 +26,8 @@ def assign_houses(df_people, df_houses, seed):
 
 def execute(context):
     seed = context.config("seed")
-    df_census = context.stage("preprocess.clean_census")
-    df_home = context.stage("preprocess.home")
+    df_census = context.stage("data.census.clean_census")
+    df_home = context.stage("data.spatial.home")
 
     # for each zone sample enough houses for the people living in it
     all_zones = df_census['zone_id'].unique()

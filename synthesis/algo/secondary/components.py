@@ -1,4 +1,4 @@
-import synthesis.algorithms.secondary.rda as rda
+import synthesis.algo.secondary.rda as rda
 import sklearn.neighbors
 import numpy as np
 

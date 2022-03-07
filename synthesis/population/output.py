@@ -15,20 +15,12 @@ WALKING_DIST = 50
 #TODO
 
 """
-
 def configure(context):
-    context.config("seed")
-    context.config("epsg")
-    context.config("data_path")
     context.config("output_path")
-    context.config("secondary_location_processes")
-    
-    context.stage("preprocess.secondary")
-    context.stage("synthesis.population.matched")
-    context.stage("synthesis.population.assigned")
-    context.stage("synthesis.population.spatial.secondary.distance_distributions")
-    context.stage("synthesis.population.assigned_secondary")
-    
+
+    context.stage("synthesis.spatial.primary.assigned")
+    context.stage("synthesis.spatial.secondary.assigned")
+
 
 def return_trip_duration(start_time, end_time):
     if(start_time == np.nan or end_time == np.nan):
@@ -100,14 +92,13 @@ def prepare_trips_shp(df_trips, df_activities):
 
 
 
-
 """
 
 """
 def execute(context):
-  df_locations, df_convergence = context.stage("synthesis.population.assigned_secondary")
-  df_persons, df_activities, df_trips = context.stage("synthesis.population.assigned")
-  df_destinations = context.stage("preprocess.secondary")
+  df_locations, df_convergence = context.stage("synthesis.spatial.secondary.assigned")
+  df_persons, df_activities, df_trips = context.stage("synthesis.spatial.primary.assigned")
+
 
   df_locations["activity_order"] = df_locations.trip_index + 1
   df_locations = df_locations.rename(columns={"destination_id":"location_id"})
@@ -127,8 +118,6 @@ def execute(context):
   print(df_activities.head())
   print(df_activities.info())
 
-  
-
   print("NaN geometries:",df_activities.geometry.isna().sum())
   print(df_convergence.head())
   print("Valid secondary location ratio:", df_convergence.valid.value_counts(normalize=True))
@@ -145,14 +134,6 @@ def execute(context):
   print("People traveling today:")
   print(df_persons.trip_today.value_counts())
 
-  #save to CSV files
-  df_persons.to_csv(context.config("output_path")+"/df_persons.csv")
-  df_activities.to_csv(context.config("output_path")+"/df_activities.csv")
-  df_trips.to_csv(context.config("output_path")+"/df_trips.csv")
-
-  #df_population_trips = prepare_trips_shp(df_trips, df_activities)
-  #export_shp(df_population_trips[df_population_trips.following_purpose == "other" ], context.config("output_path")+"dest_other_travels.shp")
-  #export_shp(df_population_trips[df_population_trips.following_purpose == "shop" ], context.config("output_path")+"dest_shop_travels.shp")
   #export_shp(df_population_trips[df_population_trips.following_purpose == "leisure" ], context.config("output_path")+"dest_leisure_travels.shp")
   #export_shp(df_population_trips[df_population_trips.following_purpose == "home" ], context.config("output_path")+"dest_home_travels.shp")
   #export_shp(df_population_trips[df_population_trips.following_purpose == "work" ], context.config("output_path")+"dest_work_travels.shp")

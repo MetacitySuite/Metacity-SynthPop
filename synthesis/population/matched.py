@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
-import synthesis.algorithms.hot_deck_matching
-
+import synthesis.algo.hot_deck_matching
 
 def correct_string(s):
     if("Praha" not in s):
@@ -25,44 +24,40 @@ def set_students(row):
     return row.employment
 
 def remove_invalid_chains(df_matched, hts_activities):
-
     start_outside_home = set(hts_activities[hts_activities.activity_order == 0][hts_activities.purpose != "home"].traveler_id.values)
     print("HTS people starting outside home:",len(start_outside_home))
-    
-    
     end_outside_home = set()
     
     for i,traveler in hts_activities.groupby("traveler_id"):
         max_order = max(traveler.activity_order.values)
-        #print(max_order)
         if(traveler[traveler.activity_order == max_order].purpose.values != "home" or traveler[traveler.activity_order == 0].purpose.values != "home"):
-            print(traveler)
             end_outside_home.add(i)
 
     print("HTS people ending outside home:",len(set(end_outside_home)))
     # Filter matched
     invalid_hts_travelers = start_outside_home.union(end_outside_home)
     df_valid = df_matched[~df_matched.hdm_source_id.isin(invalid_hts_travelers)]
-    print("Removed:", df_matched.shape[0] - df_valid.shape[0])
+    print("Removed travelers from matched census:", df_matched.shape[0] - df_valid.shape[0])
+    print("Matched result:",df_valid.shape[0])
     df_valid.reset_index(inplace=True)
     return df_valid
 
 def configure(context):
-    #context.stage("synthesis.population.sampled")
     context.config("data_path")
     context.config("district_mapping_file") #data sensitive
     context.config("matching_processes")
     context.config("matching_minimum_samples")
-    context.stage("preprocess.clean_census")
-    context.stage("preprocess.clean_travel_survey")
-    context.stage("preprocess.extract_hts_trip_chains")
-    context.stage("preprocess.zones")
+
+    context.stage("data.census.clean_census")
+    context.stage("data.hts.clean_travel_survey")
+    context.stage("data.hts.extract_hts_trip_chains")
+    context.stage("data.spatial.zones")
 
 def execute(context):
     #df_census = context.stage("synthesis.population.sampled")
-    df_zones = context.stage("preprocess.zones")
-    df_census = context.stage("preprocess.clean_census")
-    df_households, df_travelers, _ = context.stage("preprocess.clean_travel_survey")
+    df_zones = context.stage("data.spatial.zones")
+    df_census = context.stage("data.census.clean_census")
+    df_households, df_travelers, _ = context.stage("data.hts.clean_travel_survey")
 
     #set source and target for statistical matching
     df_source = df_travelers.drop(['driving_license', 'car_avail', 'bike_avail', 'pt_avail'], axis = 1)
@@ -88,11 +83,10 @@ def execute(context):
 
     df_source.employment = df_source.employment.map(employment_map)
     df_target.employment = df_target.employment.map(employment_map)
+
     #all kids aged 6-14 are set as students
-    #TODO
-    print(df_target.employment.value_counts())
     df_target.employment = df_target.apply(lambda row: set_students(row), axis=1)
-    print(df_target.employment.value_counts())
+
 
     #add district_name column for pairing
     df_source = df_source.merge(df_households, on='household_id')
@@ -109,7 +103,7 @@ def execute(context):
     df_target.to_csv(context.config("output_path")+"/clean_census_matched.csv")
     
     
-    synthesis.algorithms.hot_deck_matching.run(
+    synthesis.algo.hot_deck_matching.run(
         df_target, df_source,
         "traveler_id",
         ["age_class", "sex", "employment"],
@@ -124,11 +118,8 @@ def execute(context):
     print(unmatched.employment.value_counts())
     df_target.drop(unmatched.index, axis=0, inplace=True)
     df_target.reset_index(inplace=True)
-    #print(len(df_target.loc[df_target['hdm_source_id'] == -1]))
-    #return matched census individuals
 
-    hts_activities, _ = context.stage("preprocess.extract_hts_trip_chains")
-    #TODO export data pro vojtu
-
+    hts_activities, _ = context.stage("data.hts.extract_hts_trip_chains")
     df_matched = remove_invalid_chains(df_target, hts_activities)
+
     return df_matched
