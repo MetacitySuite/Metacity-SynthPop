@@ -147,4 +147,5 @@ def execute(context):
     geometries = df_census_assigned.commute_point.apply(lambda x: x.wkt).values
     print("Unique workplaces:", len(set(geometries)))
     export_shp(df_census_assigned, context.config("output_path")+"workplace_travels.shp")
+    
     return df_census_assigned

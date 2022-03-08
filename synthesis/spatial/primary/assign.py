@@ -32,8 +32,8 @@ def export_shp(df, output_shp):
 def prepare_people(df_employed, df_students):
     df_persons = pd.DataFrame(columns=["person_id","trip_today"])
     
-    df_traveling = df_employed[df_employed.travels_to_work == True]
-    df_traveling = df_traveling.append(df_students[df_students.travels_to_school == True])
+    df_traveling = df_employed#[df_employed.travels_to_work == True]
+    df_traveling = df_traveling.append(df_students)#[df_students.travels_to_school == True])
     df_traveling = df_traveling.drop_duplicates(subset="person_id")
 
     df_persons.loc[:,"person_id"] = df_traveling.person_id.values
@@ -62,7 +62,7 @@ def assign_activities_trips(args):
     del(merged)
 
     #impute geometry
-    locations = df_activities.merge(df_traveling[["person_id","residence_id","commute_point","residence_point"]],
+    locations = df_activities.merge(df_traveling[["person_id","residence_id","workplace_point","school_point","residence_point"]],
                                     left_on="person_id", right_on="person_id", how="left")
     df_activities.loc[:, "geometry"] = locations.apply(lambda row:misc.return_geometry_point(row),axis=1)
 

@@ -28,16 +28,19 @@ def prepare_locations(df_activities):
     df_home =  df_activities[df_activities.purpose == "home"]
     df_home = df_home.drop_duplicates(subset="person_id", keep="first")
     df_home.rename(columns={"geometry":"home"}, inplace=True)
+    print(df_home.info())
 
     df_work = pd.DataFrame()
     df_work =  df_activities[df_activities.purpose == "work"]
     df_work = df_work.drop_duplicates(subset="person_id", keep="first")
     df_work.rename(columns={"geometry":"work"}, inplace=True)
+    print(df_work.info())
 
     df_education = pd.DataFrame()
     df_education =  df_activities[df_activities.purpose == "education"]
     df_education = df_education.drop_duplicates(subset="person_id", keep="first")
     df_education.rename(columns={"geometry":"education"}, inplace=True)
+    print(df_education.info())
 
     df_locations = df_home[["person_id","home"]].copy()
     df_locations = pd.merge(df_locations, df_work[["person_id", "work"]], how = "left", on = "person_id")
@@ -107,6 +110,7 @@ def execute(context):
     df_trips = prepare_trips(df_trips, df_activities)
     # primary locations
     df_primary = prepare_locations(df_activities)
+    
     # secondary destinations
     destinations = prepare_secondary(df_destinations)
 

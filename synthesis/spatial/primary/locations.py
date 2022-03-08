@@ -144,6 +144,20 @@ def execute(context):
     df_workers = process(context, "work")
     df_students = process(context, "edu")
 
+    df_workers.rename(columns={"commute_point":"workplace_point"}, inplace=True)
+    df_students.rename(columns={"commute_point":"school_point"}, inplace=True)
+
+    #df_workers["school_point"] = np.nan
+    #df_students["workplace_point"] = np.nan
+    df_workers = df_workers.merge(df_students[["person_id","school_point"]], left_on="person_id", right_on="person_id", how="left")
+    df_students = df_students.merge(df_workers[["person_id","workplace_point"]], left_on="person_id", right_on="person_id", how="left")
+
+    
+
+    print(df_workers.head())
+    print(df_students.head())
+    print(df_workers.info())
+    print(df_students.info())
 
     #TODO add code from assigned.py
     return df_workers, df_students

@@ -1,13 +1,23 @@
 
+from locale import normalize
 import numpy as np
 from shapely.geometry import LineString, Point
 
 
-WALKING_DIST = 50
-TIME_VARIATION_M = 15
+WALKING_DIST = 80
+TIME_VARIATION_M = 30
 MIDNIGHT = 24*60*60
 
 def return_trip_duration(start_time, end_time):
+    if(start_time == np.nan or end_time == np.nan):
+        return np.nan
+    
+    if(start_time > end_time):
+        return abs(start_time + (MIDNIGHT - end_time))
+
+    return abs(end_time - start_time)
+
+def return_activity_duration(start_time, end_time):
     if(start_time == np.nan or end_time == np.nan):
         return np.nan
     
@@ -36,9 +46,14 @@ def return_trip_duration_row(row, next_row):
 def return_geometry_point(df_row):
     if(df_row.purpose == "home"):
         return Point([-df_row.residence_point.x, -df_row.residence_point.y])
-    if(df_row.purpose in ["work", "education"]):
+    if(df_row.purpose == "work"):
         try:
-            return Point([-df_row.commute_point.x, -df_row.commute_point.y])
+            return Point([-df_row.workplace_point.x, -df_row.workplace_point.y])
+        except:
+            return None
+    if(df_row.purpose == "education"):
+        try:
+            return Point([-df_row.school_point.x, -df_row.school_point.y])
         except:
             return None
     return None
@@ -109,14 +124,14 @@ def return_time_variation(df_row, column, prev_row=None, df = None):
 def print_assign_results(df_persons, df_activities, df_trips):
     print("PERSONS:", df_persons.shape[0])
     print(df_persons.info())
-    print(df_persons.head())
+    print(df_persons.head(2))
     print(df_persons.trip_today.value_counts(normalize=True))
     assert len(df_persons.person_id.unique()) == df_persons.shape[0]
     assert not df_persons.isnull().values.any()
 
     print("ACTIVITIES:", df_activities.shape[0])
     print(df_activities.info())
-    print(df_activities.head())
+    print(df_activities.head(5))
     print(df_activities.purpose.value_counts(normalize=True))
     assert len(df_activities.person_id.unique()) == len(df_persons.person_id.unique())
     print("Person id in persons that are not in activities:",set(df_persons.person_id.unique()) - set(df_activities.person_id.unique()))
@@ -124,4 +139,5 @@ def print_assign_results(df_persons, df_activities, df_trips):
 
     print("TRIPS:")
     print(df_trips.info())
-    print(df_trips.head())
+    print(df_trips.head(2))
+    print(df_trips.traveling_mode.value_counts(normalize=True))

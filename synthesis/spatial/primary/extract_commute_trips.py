@@ -10,6 +10,8 @@ def configure(context):
     context.stage("data.spatial.extract_amenities")
     context.stage("data.other.clean_commute_prob")
     context.stage("data.spatial.zones")
+    context.stage("data.other.census_workers")
+    context.stage("data.other.census_students")
 
 def extract_primary_activity_distances(df_people, df_trips):
     print("Extracting commute distances:")
@@ -21,30 +23,6 @@ def extract_primary_activity_distances(df_people, df_trips):
     print("\tCensus travelers with beeline:",df_people.shape[0])
     return df_people
 
-def extract_work_distances(df_people, df_trips):
-    print("Extracting commute distances:")
-
-    print("\tCensus workers traveling:",df_people.shape[0])
-    work_trips = df_trips.loc[df_trips.traveler_id.isin(df_people.hdm_source_id.unique())]
-    work_trips = work_trips.drop_duplicates(["traveler_id"])
-    print("\tWork trips to impute:", work_trips.shape[0])
-    df_people = df_people.merge(work_trips[["traveler_id","beeline"]], 
-                    left_on="hdm_source_id", right_on="traveler_id")
-    print("\tCensus workers with beeline:",df_people.shape[0])
-    return df_people
-
-def extract_school_distances(df_people, df_trips):
-    print("Extracting school commute distances:")
-    print("\t All trips:", df_trips.shape[0])
-
-    print("\tCensus students traveling:",df_people.shape[0])
-    school_trips = df_trips.loc[df_trips.traveler_id.isin(df_people.hdm_source_id.unique())]
-    school_trips = school_trips.drop_duplicates(["traveler_id"])
-    print("\tSchool (hts) trips to impute:", school_trips.shape[0])
-    df_people = df_people.merge(school_trips[["traveler_id","beeline"]], 
-                    left_on="hdm_source_id", right_on="traveler_id")
-    print("\tCensus students with hts beeline:",df_people.shape[0])
-    return df_people
 
 def extract_travelling_workers(df_trips, df_matched, prague_area):
     #traveler ids with work trips in Prague
@@ -140,12 +118,16 @@ def execute(context):
 
     #Assigning primary location (work): Step 1
     #extract employed people who travel to work
-    employed_trip = extract_travelling_workers(df_trips, df_matched, context.config("prague_area_code"))
+    #employed_trip = extract_travelling_workers(df_trips, df_matched, context.config("prague_area_code"))
+
+    employed_trip, _, _ = context.stage("data.other.census_workers")
+
     #employed_trip = extract_work_distances(employed_trip, df_trips)
     employed_trip = extract_primary_activity_distances(employed_trip, df_trips)
 
     #extract student who travel to school
-    students_trip = extract_travelling_students(df_trips, df_matched, context.config("prague_area_code"))
+    #students_trip = extract_travelling_students(df_trips, df_matched, context.config("prague_area_code"))
+    students_trip, _, _ = context.stage("data.other.census_students")
     #students_trip = extract_school_distances(students_trip, df_trips)
     students_trip = extract_primary_activity_distances(students_trip, df_trips)
 
