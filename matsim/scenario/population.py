@@ -52,12 +52,12 @@ def add_person(writer, person, activities, trips):
     writer.end_person()
 
 def configure(context):
-    context.stage("synthesis.population.population")
+    context.stage("synthesis.population.output")
     context.config("output_path")
 
 def execute(context):
     output_path = context.config("output_path") + "population.xml.gz"
-    df_persons, df_activities, df_trips = context.stage("synthesis.population.population")
+    df_persons, df_activities, df_trips = context.stage("synthesis.population.output")
 
     df_persons = df_persons.sort_values(by=['person_id'])
     df_activities = df_activities.sort_values(by=['person_id', 'activity_order'])

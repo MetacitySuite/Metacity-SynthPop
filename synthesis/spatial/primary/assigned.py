@@ -200,23 +200,28 @@ def execute(context):
     print("Overlap assigned and leave home:", len(set(leave_home_ids).intersection(df_persons.person_id.unique())))
     print("Overlap assigned and to assign:", len(set(other_ids).intersection(df_persons.person_id.unique())))
 
-    
-    to_drop = list(set(leave_home_ids).intersection(df_persons.person_id.unique()))
-    #TODO add students dropped when assigning school because of zone outside probabilitites
-    unassinged_students = set(df_students.person_id.unique()) - set(df_persons.person_id.unique())
-    print("Unassinged students to leave home:", len(unassinged_students))
-    return
+    #assert(df_census_matched.shape[0] == (df_u.shape[0]+df_persons.shape[0]+leave_home.shape[0]))
+    #print("Difference:", df_census_matched.shape[0] -(df_u.shape[0]+df_persons.shape[0]+leave_home.shape[0]))
 
-    #leave_home = leave_home.append(df_census_matched[df_census_matched.person_id.isin(to_drop)])
+    to_drop = []
+         #TODO add students dropped when assigning school because of zone outside probabilitites
+    for purpose in ["education","work","home"]:
+        activitities = df_activities[df_activities.purpose == purpose]
+        print(purpose+" activities", activitities.shape[0])
+        unassigned = activitities[activitities.geometry.isnull()].person_id.values
+        print("Unassinged "+purpose+" commuters to leave home:", len(unassigned))
+        to_drop.extend(unassigned)
     
+    if(len(list(set(leave_home_ids).intersection(df_persons.person_id.unique()))) > 0):
+        to_drop.extend(list(set(leave_home_ids).intersection(df_persons.person_id.unique())))
+
     #remove from already assigned
     df_persons = df_persons[~df_persons.person_id.isin(to_drop)]
     df_activities = df_activities[~df_activities.person_id.isin(to_drop)]
     df_ttrips = df_ttrips[~df_ttrips.person_id.isin(to_drop)]
     print("Overlap assigned and leave home:", len(set(leave_home_ids).intersection(df_persons.person_id.unique())))
 
-    assert(df_census_matched.shape[0] == (df_u.shape[0]+df_persons.shape[0]+leave_home.shape[0]))
-    print("Difference:", df_census_matched.shape[0] -(df_u.shape[0]+df_persons.shape[0]+leave_home.shape[0]))
+
 
 
     df_u = df_u[['person_id','hdm_source_id', 'sex', 'age', 'employment', 'residence_id', "car_avail","driving_license"]]
@@ -274,7 +279,7 @@ def execute(context):
 
     misc.print_assign_results(df_persons, df_activities, df_ttrips)
 
-    assert(df_census_matched.shape[0] == df_persons.shape[0])
+    #assert(df_census_matched.shape[0] == df_persons.shape[0])
     print("Activity chains with primary destinations assigned.")
     
     #df_a = df_activities.copy()
@@ -282,5 +287,20 @@ def execute(context):
     #for p,df in df_a.groupby(df_a.purpose):
     #    print("Purpose:",p)
     #    print(df.describe())
+
+    to_drop = []
+     #TODO add students dropped when assigning school because of zone outside probabilitites
+    for purpose in ["education","work","home"]:
+        activitities = df_activities[df_activities.purpose == purpose]
+        print(purpose+" activities", activitities.shape[0])
+        unassigned = activitities[activitities.geometry.isnull()].person_id.values
+        print("Unassinged "+purpose+" commuters to leave home:", len(unassigned))
+        to_drop.extend(unassigned)
+
+    #remove from already assigned
+    df_persons = df_persons[~df_persons.person_id.isin(to_drop)]
+    df_activities = df_activities[~df_activities.person_id.isin(to_drop)]
+    df_ttrips = df_ttrips[~df_ttrips.person_id.isin(to_drop)]
+
 
     return df_persons, df_activities, df_ttrips
