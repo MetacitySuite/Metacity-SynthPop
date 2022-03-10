@@ -247,7 +247,7 @@ def execute(context):
     #print("Unique person ids in trips, travelers and activities")
     #print(len(df_trips.traveler_id.unique()), len(df_travelers.traveler_id.unique()))
     #print(len(activities.traveler_id.unique()))
-    activities.to_csv(context.config("output_path")+"/hts_activities_extracted.csv")
-    trips.to_csv(context.config("output_path")+"/hts_trips_extracted.csv")
+    activities.to_csv(context.config("output_path")+"/csv/hts_activities_extracted.csv")
+    trips.to_csv(context.config("output_path")+"/csv/hts_trips_extracted.csv")
 
     return activities, trips

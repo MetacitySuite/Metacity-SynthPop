@@ -5,7 +5,7 @@ from shapely.geometry import LineString, Point
 
 
 WALKING_DIST = 80
-TIME_VARIATION_M = 30
+TIME_VARIATION_M = 15
 MIDNIGHT = 24*60*60
 
 def return_trip_duration(start_time, end_time):
@@ -82,7 +82,50 @@ def get_distance(origin, destination):
             print(origin, destination)
 
 
-def return_time_variation(df_row, column, prev_row=None, df = None):
+def return_time_variation(row, prev_row):
+    ixr, row = row
+    if prev_row is None:
+        return np.nan
+    ixn, prev_row = prev_row
+
+    duration = row.activity_duration
+    next_trip_duration = row.trip_duration
+    last_trip_duration = prev_row.trip_duration
+    shift = TIME_VARIATION_M*60
+
+    try:
+        if(last_trip_duration == np.nan):
+            last_trip_duration = 0
+
+        if(next_trip_duration > 0):
+            offset_end = np.random.randint(max(-shift, -next_trip_duration*0.4),min(shift, next_trip_duration*0.4))
+        else:
+            offset_end = 0
+        #offset start_time
+        if(last_trip_duration > 0):
+            offset_start = np.random.randint(max(-shift, -last_trip_duration*0.4),min(shift, last_trip_duration*0.4))
+        else:
+            offset_start = 0
+
+        new_start = row.start_time + offset_start
+        new_end = row.end_time + offset_end
+        new_duration = return_activity_duration(new_start, new_end)
+
+        if(new_duration <= 0 or new_end < new_start):
+            return row.start_time, row.end_time
+        else:
+            return new_start, new_end
+
+    except ValueError:
+        return row.start_time, row.end_time
+
+    
+
+    #if(np.isnan(row.loc["start_time"]) or np.isnan(row.loc["end_time"]) ):
+    #    return np.nan
+
+
+def return_time_variation2(df_row, column, activity_duration_m, prev_row=None, df = None):
     ixr, df_row = df_row
     if prev_row is None:
         return np.nan

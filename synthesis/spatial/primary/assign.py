@@ -74,11 +74,18 @@ def assign_activities_trips(args):
     df_activities.loc[:,"trip_duration"] = [misc.return_trip_duration_row(row, next_row) 
                                 for row, next_row in zip(df_activities.iterrows(),df_activities.shift(-1).iterrows())]
 
-    df_activities.loc[:, "start_time"] = [misc.return_time_variation(row, "start_time", prev_row, df_activities)for row, prev_row in zip(df_activities.iterrows(),df_activities.shift(1).iterrows())]
-    df_activities.loc[:, "end_time"] = [misc.return_time_variation(row, "end_time", prev_row, df_activities)for row, prev_row in zip(df_activities.iterrows(),df_activities.shift(1).iterrows())]
+    df_activities.loc[:,"activity_duration"] = df_activities.apply(lambda row: misc.return_activity_duration(row.start_time, row.end_time), axis=1)
+
+
+    new_times = [misc.return_time_variation(row, prev_row)for row, prev_row in zip(df_activities.iterrows(),df_activities.shift(1).iterrows())]
+    df_activities.loc[:, "start_time"] = [ a for a,_ in new_times]
+    df_activities.loc[:, "end_time"] = [b for _,b in new_times]
+    #[misc.return_time_variation(row, "end_time", row.activity_duration, prev_row, df_activities)for row, prev_row in zip(df_activities.iterrows(),df_activities.shift(1).iterrows())]
 
     df_activities.loc[:,"trip_duration"] = [misc.return_trip_duration_row(row, next_row) 
                                 for row, next_row in zip(df_activities.iterrows(),df_activities.shift(-1).iterrows())]
+
+    df_activities.loc[:,"activity_duration"] = df_activities.apply(lambda row: misc.return_activity_duration(row.start_time, row.end_time), axis=1)
 
 
     #prepare trips
@@ -166,4 +173,4 @@ def execute(context):
 
     misc.print_assign_results(df_persons, df_activities, df_ttrips)
 
-    return df_traveling, df_persons, df_activities, df_ttrips
+    return df_persons, df_activities, df_ttrips

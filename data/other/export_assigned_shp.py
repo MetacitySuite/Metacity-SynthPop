@@ -30,7 +30,7 @@ def export_activity(df, activity, context):
 
     df_a = pd.DataFrame()
     df_a["geometry"] = df_a_home.geometry
-    export_shp(df_a, context.config("output_path")+"activities_"+activity+".shp")
+    export_shp(df_a, context.config("output_path")+"shp/activities_"+activity+".shp")
     return
 
 

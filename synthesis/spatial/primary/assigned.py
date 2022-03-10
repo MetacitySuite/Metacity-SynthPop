@@ -68,11 +68,18 @@ def assign_activities_other(args):
     df_activities.loc[:,"trip_duration"] = [misc.return_trip_duration_row(row, next_row) 
                                 for row, next_row in zip(df_activities.iterrows(),df_activities.shift(-1).iterrows())]
 
-    df_activities.loc[:, "start_time"] = [misc.return_time_variation(row, "start_time", prev_row, df_activities)for row, prev_row in zip(df_activities.iterrows(),df_activities.shift(1).iterrows())]
-    df_activities.loc[:, "end_time"] = [misc.return_time_variation(row, "end_time", prev_row, df_activities)for row, prev_row in zip(df_activities.iterrows(),df_activities.shift(1).iterrows())]
+    df_activities.loc[:,"activity_duration"] = df_activities.apply(lambda row: misc.return_activity_duration(row.start_time, row.end_time), axis=1)
+
+
+    new_times = [misc.return_time_variation(row, prev_row)for row, prev_row in zip(df_activities.iterrows(),df_activities.shift(1).iterrows())]
+    df_activities.loc[:, "start_time"] = [ a for a,_ in new_times]
+    df_activities.loc[:, "end_time"] = [b for _,b in new_times]
+    #[misc.return_time_variation(row, "end_time", row.activity_duration, prev_row, df_activities)for row, prev_row in zip(df_activities.iterrows(),df_activities.shift(1).iterrows())]
 
     df_activities.loc[:,"trip_duration"] = [misc.return_trip_duration_row(row, next_row) 
                                 for row, next_row in zip(df_activities.iterrows(),df_activities.shift(-1).iterrows())]
+
+    df_activities.loc[:,"activity_duration"] = df_activities.apply(lambda row: misc.return_activity_duration(row.start_time, row.end_time), axis=1)
     #prepare trips
     df_ttrips = df_persons.merge(df_trips_hts,
                                     left_on="traveler_id", right_on="traveler_id", how="inner")
@@ -123,57 +130,12 @@ def assign_chains_par(df_persons, df_activities_hts, df_trips_hts):
     df_persons = pd.concat(p)
     df_ttrips = pd.concat(t)
     return df_activities, df_persons, df_ttrips
-
-def prepare_unemployed(df_census, df_traveling, df_home, df_hts):
-    df_unemployed = df_census[df_census.employment == "unemployed"]
-    df_u = df_unemployed[['person_id','hdm_source_id', 'sex', 'age', 'employment', 'residence_id', "car_avail","driving_license"]]
-    print(len(set(df_u.person_id.values).intersection(set(df_traveling.person_id.values))))
-    df_other = df_census[df_census.employment != "unemployed"][['person_id','hdm_source_id', 'sex', 'age', 'employment', 'residence_id', "car_avail","driving_license"]]
-    df_other = df_other[~df_other.person_id.isin(df_traveling.person_id.values)]
-    df_other.loc[:,'trip_today'] = df_other.merge(df_hts,left_on="hdm_source_id", right_on="traveler_id", how="left").trip_today.values
-    print(len(set(df_other.person_id.values).intersection(set(df_traveling.person_id.values))))
-    df_travels = df_other[df_other.trip_today == True]
-    df_stays_home = df_other[df_other.trip_today == False]
-    print(len(set(df_travels.person_id.values).intersection(set(df_stays_home.person_id.values))))
     
-    df_u = df_u.merge(df_home[["residence_id","geometry"]], left_on="residence_id", right_on="residence_id", how="left")
-    df_travels = df_travels.merge(df_home[["residence_id","geometry"]], left_on="residence_id", right_on="residence_id", how="left")
-    df_stays_home = df_stays_home.merge(df_home[["residence_id","geometry"]], left_on="residence_id", right_on="residence_id", how="left")
-
-    df_u.rename(columns={"geometry":"residence_point"}, inplace=True)
-    df_travels.rename(columns={"geometry":"residence_point"}, inplace=True)
-    df_stays_home.rename(columns={"geometry":"residence_point"}, inplace=True)
-    print("Unemployed in census:",df_u.shape[0])
-    print("Non-traveling employed and students:",df_travels.shape[0])
-    print("Trav employed and students:",df_stays_home.shape[0])
-    return df_u, df_travels, df_stays_home
-    
-def filter_workers(df_u, df_activities_hts):
-
-    hts_active = df_activities_hts[df_activities_hts.purpose.isin(["work","education"])].traveler_id.values
-    hts_active = list(set(hts_active))
-
-    df_active = df_u[df_u.hdm_source_id.isin(hts_active)]
-    df_true = df_u[~df_u.hdm_source_id.isin(hts_active)]
-    df_true.reset_index(drop=True, inplace=True)
-
-    return df_true, df_active
-
-def execute(context):
-    _, df_travelers, _ = context.stage("data.hts.clean_travel_survey")
-    df_activities_hts,df_trips_hts = context.stage("data.hts.extract_hts_trip_chains")
-
-    df_census_home = context.stage("synthesis.spatial.primary.census_home")
-    df_census_matched = context.stage("synthesis.population.matched")
-    
-    df_traveling, df_persons, df_activities, df_ttrips = context.stage("synthesis.spatial.primary.assign") # already assigned workers and students
-
-    df_home = context.stage("data.spatial.home")
-    print("Already assigned:",df_persons.shape[0])
-    
-    #TODO assign activity chains to unemployed
+def prepare_travelers(context, df_travelers, df_census_matched, df_census_home, df_home):
     _, df_other_w, df_leave_home_w = context.stage("data.other.census_workers")
     df_students, df_other_e, df_leave_home_e = context.stage("data.other.census_students")
+    df_persons, df_activities, df_ttrips = context.stage("synthesis.spatial.primary.assign") # already assigned workers and students
+    print("Already assigned:",df_persons.shape[0])
 
     df_census_matched = df_census_matched.merge(df_travelers[["traveler_id","car_avail","driving_license"]],
                                     left_on="hdm_source_id", right_on="traveler_id", how="left")
@@ -190,13 +152,10 @@ def execute(context):
     print("Other in census (#):", len(other_ids))
     df_u = df_census_matched[df_census_matched.person_id.isin(other_ids)]
     
-    #print("Together:", df_u.shape[0]+df_persons.shape[0]+df_travels.shape[0]+df_home.shape[0])
-
     print("Together:", df_u.shape[0]+df_persons.shape[0]+leave_home.shape[0])
     print("Full census:", df_census_matched.shape[0])
     print("Difference:", df_census_matched.shape[0] - (df_u.shape[0]+df_persons.shape[0]+leave_home.shape[0]))
     
-
     print("Overlap assigned and leave home:", len(set(leave_home_ids).intersection(df_persons.person_id.unique())))
     print("Overlap assigned and to assign:", len(set(other_ids).intersection(df_persons.person_id.unique())))
 
@@ -204,7 +163,6 @@ def execute(context):
     #print("Difference:", df_census_matched.shape[0] -(df_u.shape[0]+df_persons.shape[0]+leave_home.shape[0]))
 
     to_drop = []
-         #TODO add students dropped when assigning school because of zone outside probabilitites
     for purpose in ["education","work","home"]:
         activitities = df_activities[df_activities.purpose == purpose]
         print(purpose+" activities", activitities.shape[0])
@@ -215,14 +173,21 @@ def execute(context):
     if(len(list(set(leave_home_ids).intersection(df_persons.person_id.unique()))) > 0):
         to_drop.extend(list(set(leave_home_ids).intersection(df_persons.person_id.unique())))
 
+    #leave home already assigned travelers with school or workplace outside Prague
+    df_outside_ids = list(df_activities[df_activities.geometry == Point(1,1)].person_id.unique())
+
+
+    print("Assigned people working outside:", len(df_outside_ids))
+    leave_home_ids.extend(df_outside_ids)
+    print("Leaving home (#):", len(leave_home_ids))
+    leave_home = df_census_matched[df_census_matched.person_id.isin(leave_home_ids)]
+    to_drop.extend(df_outside_ids)
+
     #remove from already assigned
     df_persons = df_persons[~df_persons.person_id.isin(to_drop)]
     df_activities = df_activities[~df_activities.person_id.isin(to_drop)]
     df_ttrips = df_ttrips[~df_ttrips.person_id.isin(to_drop)]
     print("Overlap assigned and leave home:", len(set(leave_home_ids).intersection(df_persons.person_id.unique())))
-
-
-
 
     df_u = df_u[['person_id','hdm_source_id', 'sex', 'age', 'employment', 'residence_id', "car_avail","driving_license"]]
     leave_home = leave_home[['person_id','hdm_source_id', 'sex', 'age', 'employment', 'residence_id', "car_avail","driving_license"]]
@@ -233,14 +198,24 @@ def execute(context):
     df_u.rename(columns={"geometry":"residence_point"}, inplace=True)
     leave_home.rename(columns={"geometry":"residence_point"}, inplace=True)
 
-    print("Assign 'other' census:")
-    #Some unemployed people still travel to work or education (???) TODO
-    #df_u, df_u_active = filter_workers(df_u, df_activities_hts)
-    #print("Unemployed (true):", df_u.shape[0])
-    #print("Unemployed (active):", df_u_active.shape[0])
-    #print("Keeping home:", df_home.shape[0]+ df_travels.shape[0]+df_u_active.shape[0])
-    #print("Traveling:", df_u.shape[0]+df_persons.shape[0])
+    return df_u, leave_home, df_persons, df_activities, df_ttrips
 
+
+
+
+def execute(context):
+    _, df_travelers, _ = context.stage("data.hts.clean_travel_survey")
+    df_activities_hts,df_trips_hts = context.stage("data.hts.extract_hts_trip_chains")
+
+    df_census_home = context.stage("synthesis.spatial.primary.census_home")
+    df_census_matched = context.stage("synthesis.population.matched")
+    df_home = context.stage("data.spatial.home")
+    
+    #assign activity chains to people without primary destination
+    df_u, leave_home, df_persons, df_activities, df_ttrips, = prepare_travelers(context, df_travelers, df_census_matched, df_census_home, df_home)
+
+
+    print("Assign 'other' census:")
     df_activities_o, df_persons_o, df_trips_o = assign_chains_par(df_u, df_activities_hts, df_trips_hts)
     
     print("Assign people who stay at home (travel not in Prague):")
@@ -279,17 +254,9 @@ def execute(context):
 
     misc.print_assign_results(df_persons, df_activities, df_ttrips)
 
-    #assert(df_census_matched.shape[0] == df_persons.shape[0])
-    print("Activity chains with primary destinations assigned.")
-    
-    #df_a = df_activities.copy()
-    #df_a.loc[:,"duration_m"] = df_a.apply(lambda row: misc.return_activity_duration(row.start_time, row.end_time), axis=1)/60
-    #for p,df in df_a.groupby(df_a.purpose):
-    #    print("Purpose:",p)
-    #    print(df.describe())
-
+    #TODO add students dropped when assigning school because of zone outside probabilitites
     to_drop = []
-     #TODO add students dropped when assigning school because of zone outside probabilitites
+
     for purpose in ["education","work","home"]:
         activitities = df_activities[df_activities.purpose == purpose]
         print(purpose+" activities", activitities.shape[0])
@@ -302,5 +269,5 @@ def execute(context):
     df_activities = df_activities[~df_activities.person_id.isin(to_drop)]
     df_ttrips = df_ttrips[~df_ttrips.person_id.isin(to_drop)]
 
-
+    print("Activity chains with primary destinations assigned.")
     return df_persons, df_activities, df_ttrips
