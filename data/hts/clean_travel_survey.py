@@ -4,6 +4,8 @@ import re
 import random
 from tqdm import tqdm
 
+import synthesis.algo.other.misc as misc
+
 """
 This stage cleans the travel survey. The travel survey consists of three tables: H (Households), P (Persons - travelers), T (Trips).
 """
@@ -146,6 +148,16 @@ def clean_activity_chain(df):
                 deleted_travelers.append(traveler_id)
                 break
 
+        if(trip_count > 0 and traveler_id not in (deleted_travelers)):
+            try:
+                first_trip = df_daily_plan.loc[(df_daily_plan['trip_order'] == 1)]
+                last_trip = df_daily_plan.loc[(df_daily_plan['trip_order'] == (trip_count))]
+                if(first_trip.origin_purpose.values[0] != "home" or last_trip.destination_purpose.values[0]!= "home"):
+                    deleted_travelers.append(traveler_id)
+            except:
+                print(df_daily_plan)
+
+
     df = df.loc[~df['traveler_id'].isin(deleted_travelers)]
     return df
 
@@ -177,11 +189,11 @@ def delete_incomplete_chains(df):
             
         
         if(len(destinations)>0 and len(set(activities)) > 1):
-            if(destinations[-1] != activities[-1]):
+            if(destinations[-1] != activities[-1] and destinations[-1] == "home"):
                 activities.append(activities[0])
 
 
-            if (activities[-1] != activities[0]): #activity chain does not loop
+            if (activities[-1] != activities[0] or activities[0] != "home"): #activity chain does not loop
                 deleted_travelers.append(traveler)
                 #print("Incomplete activity chain:", traveler)
                 #print(day[['trip_order','origin_purpose','destination_purpose']])
@@ -190,7 +202,6 @@ def delete_incomplete_chains(df):
     df = df.loc[~df['traveler_id'].isin(deleted_travelers)]
     return df
             
-
 
 def calculate_row_percentage(df, column, value, sumcolumn = None):
     if(sumcolumn != None):
@@ -378,8 +389,11 @@ def clean_trip_data(context, df):
     #filter and clean trips outside the area code
     df = filter_trips_by_area(context, df)
 
+    #convert departure and arrival time columns to seconds
+    df = calculate_time_in_seconds(df)
+
     #impute duration
-    df['duration'] = df.apply(lambda row: get_trip_duration(row), axis=1)
+    df['duration'] = df.apply(lambda row: misc.return_trip_duration(row.departure_time, row.arrival_time), axis=1)
     df['duration_m'] = df.duration/60.
 
     #impute speed
@@ -420,8 +434,7 @@ def clean_trip_data(context, df):
     #    print(mode)
     #    print(df[df.traveling_mode == mode].describe())
 
-    #convert departure and arrival time columns to seconds
-    df = calculate_time_in_seconds(df)
+
     #convert beeline to meters
     df["beeline"] = df.beeline * 1000
     df = df[['traveler_id', 'trip_order', 'origin_purpose', 'destination_purpose', 'departure_time', 'arrival_time',

@@ -42,7 +42,6 @@ def configure(context):
     context.config("prague_region_code")
     context.stage("data.other.coded_values")
 
-    #context.config("output_path")
 
 def execute(context):
     df_census = pd.read_csv(context.config("data_path") + context.config("census_file"), delimiter=";")
@@ -52,8 +51,6 @@ def execute(context):
     #chosen area only, Prague = 3018
     df_census = filter_by_region(df_census, context.config("prague_region_code")
 )
-    #df_census.to_csv(context.config("output_path") + "sldb_praha.csv", index = False, sep=';')
-
     #fill in and remap missing values
     df_census = remap_values(context, df_census)
     df_census = df_census.reset_index(drop=True)

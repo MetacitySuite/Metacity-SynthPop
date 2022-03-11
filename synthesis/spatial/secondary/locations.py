@@ -1,13 +1,6 @@
 import pandas as pd
 import numpy as np
-import geopandas as gpd
-import shapely.geometry as geo
 import synthesis.algo.other.misc as misc
-
-from synthesis.algo.secondary.problems import find_assignment_problems
-from synthesis.algo.secondary.rda import AssignmentSolver, DiscretizationErrorObjective, GravityChainSolver
-from synthesis.algo.secondary.components import CustomDistanceSampler, CustomDiscretizationSolver
-
 
 
 """
@@ -18,9 +11,8 @@ from synthesis.algo.secondary.components import CustomDistanceSampler, CustomDis
 def configure(context):
     context.stage("data.spatial.secondary")
     context.stage("synthesis.spatial.primary.assigned")
+    
 
-    
-    
 
 def prepare_locations(df_activities):
     # Load persons and their primary locations
@@ -47,6 +39,8 @@ def prepare_locations(df_activities):
     df_locations = pd.merge(df_locations, df_education[["person_id", "education"]], how = "left", on = "person_id")
 
     return df_locations[["person_id", "home", "work", "education"]].sort_values(by = "person_id")
+
+
 
 def prepare_secondary(df_destinations):
     df_destinations.rename(columns = {"location_id": "destination_id"}, inplace = True)
@@ -88,12 +82,10 @@ def prepare_trips(df_trips, df_activities):
     df_trips.loc[:,"travel_time"] = df_trips.apply(lambda row: misc.return_trip_duration(row.start, row.end), axis=1) 
 
     df_trips.rename(columns={"traveling_mode":"mode"}, inplace=True)
-
-
-    FIELDS = ["person_id", "trip_id", "preceeding_purpose", "following_purpose", "mode", "travel_time"] #TODO
-    #trip_id
     df_trips["trip_id"] = df_trips.trip_order.values
 
+    FIELDS = ["person_id", "trip_id", "preceeding_purpose", "following_purpose", "mode", "travel_time"] #TODO
+    
     df_trips = df_trips[FIELDS]
     df_trips = df_trips.sort_values(["person_id", "trip_id"])
     return df_trips

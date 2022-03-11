@@ -99,8 +99,8 @@ def execute(context):
     df_target = remap_districts(context, df_target)
 
     #save to CSV
-    df_source.to_csv(context.config("output_path")+"/clean_hts_matched.csv")
-    df_target.to_csv(context.config("output_path")+"/clean_census_matched.csv")
+    df_source.to_csv(context.config("output_path")+"/csv/clean_hts_matched.csv")
+    df_target.to_csv(context.config("output_path")+"/csv/clean_census_matched.csv")
     
     
     synthesis.algo.hot_deck_matching.run(

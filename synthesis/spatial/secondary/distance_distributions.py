@@ -9,7 +9,6 @@ def return_trip_duration(start_time, end_time):
     if(start_time == np.nan or end_time == np.nan):
         return np.nan
     
-    
     if(start_time > end_time):
         midnight = 24*60*60
         return abs(end_time + (midnight - start_time))
@@ -69,7 +68,7 @@ def execute(context):
     print(df["mode"].value_counts())
     
 
-    bin_size = 20 #200
+    bin_size = 25 #200
     distributions = {}
 
     for mode in modes:
