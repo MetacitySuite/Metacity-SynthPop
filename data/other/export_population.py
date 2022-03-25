@@ -6,7 +6,7 @@ from shapely.geometry import LineString, Point, point
 
 
 """
-Exporting assigned activity coords to shapefiles.
+Exporting population with travel demand to CSV files.
 """
 def configure(context):
     context.config("output_path")

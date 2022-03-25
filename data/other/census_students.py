@@ -10,11 +10,6 @@ def configure(context):
     context.stage("synthesis.population.matched")
 
 
-
-
-
-
-
 def execute(context):
     df_matched = context.stage("synthesis.population.matched")
     _, _, df_trips = context.stage("data.hts.clean_travel_survey")

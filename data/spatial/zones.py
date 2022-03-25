@@ -24,6 +24,6 @@ def execute(context):
     df_district.columns = ['zone_id', 'district_id', 'district_name']
     df_zones_district = df_zones.merge(df_district, on='zone_id')
 
-    print(df_zones_district.head(2))
+    #print(df_zones_district.head(2))
     
     return df_zones_district

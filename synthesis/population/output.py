@@ -5,14 +5,13 @@ import geopandas as gpd
 import shapely.geometry as geo
 import pprint
 
-#import seaborn as sns
-#import matplotlib.pyplot as plt
+
 
 WALKING_DIST = 50
 
 
 """
-#TODO
+Prepares final synthetic population with travel demands for export.
 
 """
 def configure(context):
@@ -92,56 +91,41 @@ def prepare_trips_shp(df_trips, df_activities):
 
 
 
-"""
-
-"""
 def execute(context):
-  df_locations, df_convergence = context.stage("synthesis.spatial.secondary.assigned")
-  df_persons, df_activities, df_trips = context.stage("synthesis.spatial.primary.assigned")
+    df_persons, df_activities, df_trips = context.stage("synthesis.spatial.primary.assigned")
+    df_locations, df_convergence = context.stage("synthesis.spatial.secondary.assigned")
+    df_locations["activity_order"] = df_locations.trip_index + 1
+    df_locations = df_locations.rename(columns={"destination_id":"location_id"})
 
-
-  df_locations["activity_order"] = df_locations.trip_index + 1
-  df_locations = df_locations.rename(columns={"destination_id":"location_id"})
-
-  print(df_locations.head())
-  print(df_locations.info())
-
-  df_activities= df_activities.merge(df_locations[["person_id","activity_order","location_id", "geometry"]], 
+    df_activities= df_activities.merge(df_locations[["person_id","activity_order","location_id", "geometry"]], 
                         left_on =["person_id","activity_order"],
                         right_on = ["person_id","activity_order"], how="outer", suffixes=[None, "_sec"])
-  df_activities["location_id"] = df_activities["location_id"].fillna(df_activities["location_id_sec"])
-  df_activities["geometry"] = df_activities["geometry"].fillna(df_activities["geometry_sec"])
+    df_activities["location_id"] = df_activities["location_id"].fillna(df_activities["location_id_sec"])
+    df_activities["geometry"] = df_activities["geometry"].fillna(df_activities["geometry_sec"])
 
-  df_activities.drop(["location_id_sec","geometry_sec"], axis=1, inplace=True)
+    df_activities.drop(["location_id_sec","geometry_sec"], axis=1, inplace=True)
+
+    print(df_activities.head())
+    print(df_activities.info())
+    print("NaN geometries:",df_activities.geometry.isna().sum())
+    print(df_convergence.head())
+    print("Valid secondary location ratio:", df_convergence.valid.value_counts(normalize=True))
 
 
-  print(df_activities.head())
-  print(df_activities.info())
-
-  print("NaN geometries:",df_activities.geometry.isna().sum())
-  print(df_convergence.head())
-  print("Valid secondary location ratio:", df_convergence.valid.value_counts(normalize=True))
-
-  #TODO update activities and trips, fix times and so on, assign closes to unknown secondary locations
     #car-passenger without drivers_lic and car avail
-  print(df_persons.driving_license.value_counts())
-  cars = df_trips[df_trips.traveling_mode == "car"]
-  #pd.set_option('display.max_rows', None)
-  drivers = cars.person_id.unique() #TODO driving_lic = True if drives a car
-  df_persons.loc[:, "driving_license"] = df_persons.apply(lambda row: row.driving_license or row.person_id in drivers,axis=1)
-  print(df_persons.driving_license.value_counts())
-  print(df_trips.traveling_mode.value_counts())
-  print("People traveling today:")
-  print(df_persons.trip_today.value_counts())
+    print(df_persons.driving_license.value_counts())
+    cars = df_trips[df_trips.traveling_mode == "car"]
+    #pd.set_option('display.max_rows', None)
+    drivers = cars.person_id.unique() #TODO driving_lic = True if drives a car
+    df_persons.loc[:, "driving_license"] = df_persons.apply(lambda row: row.driving_license or row.person_id in drivers,axis=1)
+    print(df_persons.driving_license.value_counts())
+    print(df_trips.traveling_mode.value_counts())
+    print("People traveling today:")
+    print(df_persons.trip_today.value_counts())
 
-  #export_shp(df_population_trips[df_population_trips.following_purpose == "leisure" ], context.config("output_path")+"dest_leisure_travels.shp")
-  #export_shp(df_population_trips[df_population_trips.following_purpose == "home" ], context.config("output_path")+"dest_home_travels.shp")
-  #export_shp(df_population_trips[df_population_trips.following_purpose == "work" ], context.config("output_path")+"dest_work_travels.shp")
-  #export_shp(df_population_trips[df_population_trips.following_purpose == "education"], context.config("output_path")+"dest_education_travels.shp")
-  #export_shp(df_population_trips, context.config("output_path")+"all_travels.shp")
-
-  PID = 7
-  print(df_activities[df_activities.person_id==PID])
-  print(df_trips[df_trips.person_id == PID])
-
-  return df_persons, df_activities, df_trips
+    #export_shp(df_population_trips[df_population_trips.following_purpose == "leisure" ], context.config("output_path")+"dest_leisure_travels.shp")
+    #export_shp(df_population_trips[df_population_trips.following_purpose == "home" ], context.config("output_path")+"dest_home_travels.shp")
+    #export_shp(df_population_trips[df_population_trips.following_purpose == "work" ], context.config("output_path")+"dest_work_travels.shp")
+    #export_shp(df_population_trips[df_population_trips.following_purpose == "education"], context.config("output_path")+"dest_education_travels.shp")
+    #export_shp(df_population_trips, context.config("output_path")+"all_travels.shp")
+    return df_persons, df_activities, df_trips

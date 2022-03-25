@@ -2,6 +2,11 @@ import numpy as np
 import pandas as pd
 import synthesis.algo.hot_deck_matching
 
+
+"""
+Matches HTS sample on census.
+"""
+
 def correct_string(s):
     if("Praha" not in s):
         s = "Praha-" + s

@@ -32,8 +32,6 @@ def extract_work_distances(df_people, df_trips):
 
 
 
-
-
 def execute(context):
     df_matched = context.stage("synthesis.population.matched")
     _, _, df_trips = context.stage("data.hts.clean_travel_survey")
